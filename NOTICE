@@ -1,0 +1,16 @@
+Third-party data and credits
+
+data/hyph_is.dic
+  Icelandic Hyphenation Dictionary 2.0 (2020).
+  Copyright 2020 Kristján Rúnarsson, Árni Magnússon Institute for Icelandic
+  Studies (Stofnun Árna Magnússonar í íslenskum fræðum). Built on version 1
+  (1985) by Baldur Jónsson and Magnús Gíslason.
+  Licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/),
+  provided without warranty.
+  Source: https://github.com/icelandic-lt/hyphenation-is
+  Modified: the three header lines (UTF-8, LEFTHYPHENMIN, RIGHTHYPHENMIN) were
+  removed, and the pattern lines are compiled unchanged into
+  src/generated/data.ts.
+
+data/exceptions.txt
+  Hand-written exception list. Dedicated to the public domain under CC0 1.0.

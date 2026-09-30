@@ -1,0 +1,49 @@
+# Icelandic hyphenation exceptions
+#
+# License: CC0 1.0 (public domain dedication).
+#
+# Format: one word per line, lowercase.
+#   -   a normal break
+#   =   a compound joint (also a break). Heading mode uses only these.
+# Lines starting with # are comments. Blank lines are ignored.
+# A word listed here fully replaces the pattern breaks for that word.
+# Left and right minimums still apply. Words match case-insensitively.
+#
+# Seed list: first pass by a native speaker on 2026-09-30.
+# víta=mín and á-stríða are the official examples in Ritreglur §33
+# (Auglýsing 800/2018), which the patterns get wrong.
+# Grow it one wrong break at a time.
+
+vaðla=heið-ar=vega=vinnu=verk-færa=geymslu=skúr
+eyja=fjalla=jök-ull
+hrað=braut-ar=fram=kvæmd-ir
+þjóð=fé-lags=um=ræða
+sjálf=stæð-is=bar-átta
+upp=lýs-inga=tækni
+stjórn-ar=ráð-ið
+reykja=vík
+hönn-un-ar=stofa
+lands=byggð-inni
+fræði=mað-ur
+orð=skipt-ing-ar=vél=menni
+heil-brigð-is=ráðu=neyt-ið
+mennta=mála=ráð=herra
+sveit-ar=stjórn-ar=kosn-ing-ar
+um=hverf-is=vernd-ar=sam=tök
+veð-ur=stofa
+skóla=bóka=safn
+barna=vernd-ar=nefnd
+hæsta=rétt-ar=lög=mað-ur
+rík-is=út=varp-ið
+í-þrótta=fé-lag-ið
+lista=há=skóli
+ferða=þjón-ustu=fyr-ir=tæki
+hug=bún-að-ar=þró-un
+vef=hönn-uð-ur
+let-ur=gerð
+kvik=mynda=há=tíð
+að-al=fund-ur
+út=gáfa
+ó=hjá=kvæmi-legt
+víta=mín
+á-stríða
