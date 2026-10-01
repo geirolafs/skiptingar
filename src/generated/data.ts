@@ -23156,10 +23156,13 @@ export const EXCEPTIONS = `# Icelandic hyphenation exceptions
 # Left and right minimums still apply. Words match case-insensitively.
 #
 # Seed list: first pass by a native speaker on 2026-09-30.
-# víta=mín and á-stríða are the official examples in Ritreglur §33
-# (Auglýsing 800/2018), which the patterns get wrong.
 # Grow it one wrong break at a time.
+#
+# Typographic rules also drop a break before a linking syllable (ar, ur, is,
+# ir) that a break follows, here as in the patterns, but never a = joint.
 
+# Joint marks. The patterns already break these words where they should; the
+# entries only mark the compound joints that heading mode uses.
 vaðla=heið-ar=vega=vinnu=verk-færa=geymslu=skúr
 eyja=fjalla=jök-ull
 hrað=braut-ar=fram=kvæmd-ir
@@ -23183,7 +23186,7 @@ hæsta=rétt-ar=lög=mað-ur
 rík-is=út=varp-ið
 í-þrótta=fé-lag-ið
 lista=há=skóli
-ferða=þjón-ustu=fyr-ir=tæki
+ferða=þjónustu=fyr-ir=tæki
 hug=bún-að-ar=þró-un
 vef=hönn-uð-ur
 let-ur=gerð
@@ -23191,8 +23194,15 @@ kvik=mynda=há=tíð
 að-al=fund-ur
 út=gáfa
 ó=hjá=kvæmi-legt
+
+# Corrections: words the patterns break wrongly or not at all.
+# víta=mín and á-stríða are the official examples in Ritreglur §33
+# (Auglýsing 800/2018).
 víta=mín
 á-stríða
+vef=slóð
+kara-ókí
+egils=stöð-um
 `;
 
 /** Fewest letters before a break, from the dictionary header. */
@@ -23205,4 +23215,4 @@ export const DATA_RIGHT_MIN = 2;
 export const PATTERN_COUNT = 23139;
 
 /** Number of words in EXCEPTIONS. */
-export const EXCEPTION_COUNT = 33;
+export const EXCEPTION_COUNT = 36;

@@ -26,7 +26,7 @@ describe("parseExceptions", () => {
   test("the bundled list parses and matches the file on disk", () => {
     const fromDisk = parseExceptions(RAW_FILE);
     expect(fromDisk.size).toBe(EXCEPTION_COUNT);
-    expect(EXCEPTION_COUNT).toBe(33);
+    expect(EXCEPTION_COUNT).toBe(36);
     expect(lookupException("reykjavík")).toEqual({ breaks: [6], joints: [6] });
     expect(lookupException("karfa")).toBeUndefined();
   });

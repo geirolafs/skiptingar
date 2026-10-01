@@ -552,3 +552,57 @@ describe("character constants", () => {
     expect(NON_BREAKING_HYPHEN).toBe("\u2011");
   });
 });
+
+describe("linking syllables (typographic rules)", () => {
+  test.each([
+    ["stjórnarvöld", "stjórnar-völd"],
+    ["sveitarstjórnarkosningum", "sveitar-stjórnar-kosn-ingum"],
+    ["Hvalfjarðargöng", "Hval-fjarðar-göng"],
+    ["fyrirspurnir", "fyrir-spurnir"],
+    ["ráðuneytisins", "ráðu-neytis-ins"],
+    ["Hraðbrautarframkvæmdir", "Hrað-brautar-fram-kvæmdir"],
+  ])("%s keeps the break after the genitive, not before it", (word, expected) => {
+    expect(show(hyphenate(word))).toBe(expected);
+  });
+
+  test("ritreglur keeps every break the patterns allow", () => {
+    expect(show(hyphenate("stjórnarvöld", RITREGLUR))).toBe("stjórn-ar-völd");
+  });
+
+  test("a syllable followed by only an ending is not a link", () => {
+    expect(show(hyphenate("angurs"))).toBe("ang-urs");
+  });
+
+  test("a listed word's joints are never dropped", () => {
+    expect(show(hyphenate("sveitarstjórnarkosningar"))).toBe(
+      "sveitar-stjórnar-kosn-ingar"
+    );
+    expect(show(hyphenate("veðurstofa"))).toBe("veður-stofa");
+  });
+});
+
+describe("heading mode falls back when no joint fits", () => {
+  test.each([
+    ["Aðalsteinsson", "Aðal-steinsson"],
+    ["Seltjarnarnes", "Sel-tjarnarnes"],
+    ["Hafnarfjarðarbær", "Hafnar-fjarðarbær"],
+    ["Akureyrarbær", "Akur-eyrarbær"],
+  ])("%s keeps breaks although its name joint is too near the end", (word, expected) => {
+    expect(show(hyphenate(word, { mode: "heading" }))).toBe(expected);
+  });
+
+  test("name endings only apply to capitalised words", () => {
+    expect(analyzeWord("almannalífeyri").joints).toEqual([]);
+    expect(analyzeWord("Akureyri", RITREGLUR).joints).toEqual([4]);
+  });
+});
+
+describe("tokens with digits or a slash", () => {
+  test.each([
+    ["COVID-19-faraldurinn", "COVID-19-far-aldur-inn"],
+    ["2026-sveitarstjórnarkosningarnar", "2026-sveitar-stjórnar-kosn-ing-arnar"],
+    ["íþrótta-/tómstundastarfsemi", "íþrótta-/tóm-stunda-starf-semi"],
+  ])("%s still breaks its words", (token, expected) => {
+    expect(show(hyphenate(token))).toBe(expected);
+  });
+});

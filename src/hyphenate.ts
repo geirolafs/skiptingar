@@ -81,6 +81,40 @@ export const NAME_ENDINGS: readonly string[] = [
 /** Fewest letters the part before a `NAME_ENDINGS` ending needs. */
 const MIN_NAME_STEM = 3;
 
+/**
+ * Two-letter syllables that usually link the parts of a compound: the genitive
+ * of the first part (`stjórnar-`, `Akur-`, `ráðuneytis-`, `fyrir-`). The
+ * patterns allow a break on both sides of one, and the break before it splits
+ * the genitive from its stem: `stjórn-arvöld`, `fornald-arfrægð`. Typographic
+ * rules drop that break and keep the one after (`stjórnar-völd`).
+ */
+const LINKING_SYLLABLES: ReadonlySet<string> = new Set(["ar", "ur", "is", "ir"]);
+
+/** Fewest letters a compound's next part needs for a linking syllable to count. */
+const MIN_PART_AFTER_LINK = 3;
+
+/**
+ * The breaks without any that comes right before a linking syllable which is
+ * itself followed by a break and a part of 3 or more letters, so
+ * `stjórn·ar·völd` keeps only `stjórnar·völd`. `ang·urs` keeps its break:
+ * after `angur` comes only an ending.
+ */
+function dropLinkingBreaks(
+  chars: readonly string[],
+  breaks: readonly number[],
+  keep: readonly number[] = []
+): number[] {
+  return breaks.filter(position => {
+    const after = position + 2;
+    return !(
+      !keep.includes(position) &&
+      breaks.includes(after) &&
+      chars.length - after >= MIN_PART_AFTER_LINK &&
+      LINKING_SYLLABLES.has(chars.slice(position, after).join(""))
+    );
+  });
+}
+
 const ENDINGS_LONGEST_FIRST = [...NAME_ENDINGS]
   .map(ending => ({ ending, length: [...ending].length }))
   .sort((a, b) => b.length - a.length);
@@ -89,7 +123,9 @@ const ENDINGS_LONGEST_FIRST = [...NAME_ENDINGS]
  * The `NAME_ENDINGS` joint of a lowercase word, as "after N letters", or
  * undefined. A joint only counts when the patterns already allow a break
  * there: it selects among existing breaks and never adds one. The longest
- * matching ending is tried first.
+ * matching ending is tried first. Only capitalised words are looked up (see
+ * `wordCandidates`): common nouns such as `almannalífeyri` end in the same
+ * letters without that joint being their main one.
  */
 function nameJoint(
   lower: string,
@@ -130,9 +166,16 @@ const PRESETS = {
 const SOFT_HYPHENS = new RegExp(SOFT_HYPHEN, "g");
 const WHITESPACE_RUNS = /(\s+)/;
 const LETTER_RUNS = /\p{L}+/gu;
-// Tokens with a digit, `@`, `/`, `_` or `#` are skipped whole. URLs, bare
-// domains and email addresses are found by the shared detector in ./url.
-const SKIPPED_TOKEN = /[\p{N}@/_#]/u;
+// Tokens with `@`, `_` or `#`, a letter glued to a digit (`mp3`, `abc2026`) or
+// a slash that is not the Icelandic `orð-/orð` shorthand are skipped whole:
+// handles, identifiers and paths. In `COVID-19-faraldurinn` or
+// `íþrótta-/tómstundastarfsemi` the words still break. URLs, bare domains and
+// email addresses are found by the shared detector in ./url.
+const SKIPPED_TOKEN = /[@_#]|\p{L}\p{N}|\p{N}\p{L}/u;
+
+function isSkippedToken(token: string): boolean {
+  return SKIPPED_TOKEN.test(token) || (token.includes("/") && !token.includes("-/"));
+}
 
 function resolveLimits(options: HyphenateOptions): Limits {
   const preset = PRESETS[options.rules ?? "typographic"][options.mode ?? "body"];
@@ -189,12 +232,20 @@ function wordCandidates(
   const useLists = options.exceptions !== false;
   const entry = useLists ? lookupException(lower) : undefined;
   const fits = (position: number) => position >= leftMin && length - position >= rightMin;
+  const typographic = (options.rules ?? "typographic") === "typographic";
   if (entry) {
-    return { breaks: entry.breaks, joints: entry.joints, fits };
+    // A listed word's hand-marked joints are never dropped.
+    const breaks = typographic
+      ? dropLinkingBreaks([...lower], entry.breaks, entry.joints)
+      : entry.breaks;
+    return { breaks, joints: entry.joints, fits };
   }
 
-  const breaks = patternBreaks(lower);
-  const joint = useLists && withJoints ? nameJoint(lower, length, breaks) : undefined;
+  const patterns = patternBreaks(lower);
+  const breaks = typographic ? dropLinkingBreaks([...lower], patterns) : patterns;
+  const capitalised = chars[0] !== lower[0];
+  const joint =
+    useLists && withJoints && capitalised ? nameJoint(lower, length, breaks) : undefined;
   return { breaks, joints: joint === undefined ? [] : [joint], fits };
 }
 
@@ -209,10 +260,11 @@ export function hyphenateWord(word: string, options: HyphenateOptions = {}): num
   if (!found) {
     return [];
   }
-  // In heading mode a joint, when there is one, replaces the other breaks. In
-  // body mode joints change nothing.
-  const candidates = heading && found.joints.length > 0 ? found.joints : found.breaks;
-  return candidates.filter(found.fits);
+  // In heading mode a joint that fits the limits replaces the other breaks. A
+  // word whose joints all fall too near an end (`Aðalsteins·son`) keeps its
+  // other breaks instead of losing every one. In body mode joints change nothing.
+  const joints = heading ? found.joints.filter(found.fits) : [];
+  return joints.length > 0 ? joints : found.breaks.filter(found.fits);
 }
 
 /**
@@ -265,7 +317,11 @@ function cleanText(text: string): string {
  * the offsets once, and cut them back.
  */
 export function breakOffsets(text: string, options: HyphenateOptions = {}): number[] {
-  const clean = cleanText(text);
+  return offsetsInClean(cleanText(text), options);
+}
+
+/** `breakOffsets` for text that is already clean (see `cleanText`). */
+function offsetsInClean(clean: string, options: HyphenateOptions): number[] {
   const mask = findProtectedMask(clean);
 
   const offsets: number[] = [];
@@ -273,7 +329,7 @@ export function breakOffsets(text: string, options: HyphenateOptions = {}): numb
   for (const token of clean.split(WHITESPACE_RUNS)) {
     const base = tokenStart;
     tokenStart += token.length;
-    if (token === "" || SKIPPED_TOKEN.test(token)) {
+    if (token === "" || isSkippedToken(token)) {
       continue;
     }
     for (const match of token.matchAll(LETTER_RUNS)) {
@@ -303,14 +359,18 @@ function insertAt(text: string, offsets: readonly number[], mark: string): strin
 
 /**
  * Inserts break points into Icelandic text. Idempotent: existing soft hyphens
- * are removed first. URLs, bare domains, email addresses and tokens with
- * digits, `@`, `/`, `_` or `#` pass through untouched, as do punctuation,
- * whitespace and emoji.
+ * are removed first. URLs, bare domains, email addresses, tokens with `@`,
+ * `_` or `#`, a letter glued to a digit or a path-like `/` pass through
+ * untouched, as do punctuation, whitespace and emoji.
  *
  * Idempotence covers the default soft hyphen. With a custom `hyphenChar` the
  * caller owns removing it before a second run.
  */
 export function hyphenate(text: string, options: HyphenateOptions = {}): string {
   const clean = cleanText(text);
-  return insertAt(clean, breakOffsets(clean, options), options.hyphenChar ?? SOFT_HYPHEN);
+  return insertAt(
+    clean,
+    offsetsInClean(clean, options),
+    options.hyphenChar ?? SOFT_HYPHEN
+  );
 }
