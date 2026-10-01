@@ -6,6 +6,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseExceptions } from "../src/parse-exceptions";
+import { encodePatterns } from "../src/pattern-format";
 
 const PACKAGE_ROOT = join(import.meta.dir, "..");
 
@@ -87,7 +88,8 @@ export function renderDataModule(dic: string, exceptions: string): string {
     "/*! Icelandic Hyphenation Dictionary 2.0 (c) 2020 Kristján Rúnarsson, Árni Magnússon",
     " * Institute for Icelandic Studies; version 1 (1985) Baldur Jónsson and Magnús Gíslason.",
     " * CC BY 4.0, https://creativecommons.org/licenses/by/4.0/ - https://github.com/icelandic-lt/hyphenation-is */",
-    `export const PATTERNS = ${asTemplateLiteral(patterns)};`,
+    "/** The patterns, sorted and front-coded (see src/pattern-format.ts). */",
+    `export const PATTERNS = ${asTemplateLiteral([encodePatterns(patterns)])};`,
     "",
     `export const EXCEPTIONS = ${asTemplateLiteral(exceptionLines)};`,
     "",

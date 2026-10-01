@@ -6,6 +6,7 @@
  * pattern that covers it. Odd means a break is allowed, even means forbidden.
  */
 import { PATTERNS } from "./generated/data";
+import { decodePatterns } from "./pattern-format";
 
 type PatternTable = {
   /** Digit weights per pattern, keyed by the pattern without its digits. */
@@ -20,14 +21,11 @@ const CACHE_LIMIT = 20_000;
 let table: PatternTable | undefined;
 const cache = new Map<string, readonly number[]>();
 
-function parsePatterns(source: string): PatternTable {
+function parsePatterns(lines: readonly string[]): PatternTable {
   const weights = new Map<string, Uint8Array>();
   let maxKeyLength = 0;
 
-  for (const line of source.split("\n")) {
-    if (line === "") {
-      continue;
-    }
+  for (const line of lines) {
     let key = "";
     let slot = 0;
     const slotWeights: number[] = [0];
@@ -47,7 +45,7 @@ function parsePatterns(source: string): PatternTable {
 }
 
 function getTable(): PatternTable {
-  table ??= parsePatterns(PATTERNS);
+  table ??= parsePatterns(decodePatterns(PATTERNS));
   return table;
 }
 

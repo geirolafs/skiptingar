@@ -10,6 +10,7 @@ import {
   EXCEPTIONS,
   PATTERNS,
 } from "../src/generated/data";
+import { decodePatterns } from "../src/pattern-format";
 
 const PACKAGE_ROOT = join(import.meta.dir, "..");
 
@@ -20,7 +21,7 @@ describe("generated data", () => {
   });
 
   test("PATTERN_COUNT and EXCEPTION_COUNT match the data they describe", () => {
-    expect(PATTERN_COUNT).toBe(PATTERNS.split("\n").filter(line => line !== "").length);
+    expect(PATTERN_COUNT).toBe(decodePatterns(PATTERNS).length);
     expect(EXCEPTION_COUNT).toBe(parseExceptions(EXCEPTIONS).size);
     // The counts come from the source files, not from the generated strings.
     const dic = readFileSync(join(PACKAGE_ROOT, "data", "hyph_is.dic"), "utf8");
@@ -44,7 +45,7 @@ describe("generated data", () => {
   });
 
   test("the patterns are sorted", () => {
-    const lines = PATTERNS.split("\n");
+    const lines = decodePatterns(PATTERNS);
     expect(lines).toEqual([...lines].sort());
   });
 
@@ -170,5 +171,16 @@ describe("package boundary", () => {
         ).toBe(true);
       }
     }
+  });
+});
+
+describe("pattern format", () => {
+  test("front-coding round-trips the dictionary's patterns", async () => {
+    const { encodePatterns } = await import("../src/pattern-format");
+    const { extractPatterns } = await import("../scripts/build-data");
+    const dic = readFileSync(join(PACKAGE_ROOT, "data", "hyph_is.dic"), "utf8");
+    const { patterns } = extractPatterns(dic);
+    expect(decodePatterns(encodePatterns(patterns))).toEqual(patterns);
+    expect(decodePatterns(PATTERNS)).toEqual(patterns);
   });
 });
