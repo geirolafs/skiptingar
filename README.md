@@ -76,6 +76,10 @@ syllables, not joints, so `typographic` adds two rules on top of them:
   (with 3 or more letters before it), that boundary counts as a joint, when
   the patterns allow a break there (`Akur-eyri`, `Sigurðar-dóttir`).
 
+- **Foreign names.** A capitalised word with c, q or w (letters Icelandic
+  spelling does not use) stays whole: `Icelandair`, not `Ic-elandair`. Give
+  one breaks with the exception list or `dictionary`.
+
 In heading mode a word breaks only at its joints (the `=` of a listed word,
 or the two rules above), as long as one fits the limits; otherwise it keeps
 its other breaks (`Aðal-steinsson`). Body mode keeps every break the limits

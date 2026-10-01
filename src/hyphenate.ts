@@ -148,6 +148,14 @@ function nameJoint(
   return undefined;
 }
 
+/**
+ * Letters Icelandic spelling does not use (z only went out in 1974, so it is
+ * not one of them). A capitalised word with one is a foreign name or brand,
+ * such as Icelandair or Hollywood, and Icelandic syllable rules split it
+ * badly (Ic-elandair).
+ */
+const FOREIGN_LETTERS = /[cqw]/i;
+
 function isAcronym(word: string, length: number): boolean {
   return (
     length >= ACRONYM_LENGTH.min &&
@@ -241,6 +249,12 @@ function wordCandidates(
   });
   const fits = (position: number) => position >= leftMin && length - position >= rightMin;
   const typographic = (options.rules ?? "typographic") === "typographic";
+  // A foreign name stays whole under typographic rules, unless a list gives
+  // it breaks.
+  const capitalised = chars[0] !== lower[0];
+  if (typographic && !entry && capitalised && FOREIGN_LETTERS.test(lower)) {
+    return undefined;
+  }
   if (entry) {
     // A listed word's hand-marked joints are never dropped.
     const breaks = typographic
@@ -257,7 +271,6 @@ function wordCandidates(
   // The break kept after a linking syllable is a compound's joint
   // (`sveitar|stjórnar|kosningum`), and so is a name's ending.
   const joints = new Set(linkedJoints(patterns, breaks));
-  const capitalised = chars[0] !== lower[0];
   const joint = capitalised ? nameJoint(lower, length, breaks) : undefined;
   if (joint !== undefined) {
     joints.add(joint);

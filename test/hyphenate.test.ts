@@ -641,3 +641,24 @@ describe("dictionary", () => {
     expect(() => hyphenate("orðabókin", { dictionary: ["Orð-a"] })).toThrow();
   });
 });
+
+describe("foreign names", () => {
+  test("a capitalised word with c, q or w stays whole under typographic rules", () => {
+    for (const word of ["Icelandair", "Hollywood", "Commodore", "Walbrook"]) {
+      expect(hyphenate(word)).toBe(word);
+      expect(hyphenate(word, { mode: "heading", minWordLength: 6 })).toBe(word);
+    }
+  });
+
+  test("lowercase compounds, old z spelling and Ritreglur still break", () => {
+    expect(show(hyphenate("cashewhnetunum"))).toContain("-");
+    expect(show(hyphenate("höfuðáherzlu"))).toContain("-");
+    expect(show(hyphenate("Icelandair", RITREGLUR))).toContain("-");
+  });
+
+  test("a dictionary entry gives a foreign name its breaks", () => {
+    expect(show(hyphenate("Icelandair", { dictionary: ["ice=land=air"] }))).toBe(
+      "Ice-land-air"
+    );
+  });
+});
