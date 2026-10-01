@@ -307,6 +307,10 @@ Settled text sets its own `text-wrap: wrap` while settled; `pretty` and
 Set `lang="is"`; browsers use it for language rules. Screen readers differ on
 soft hyphens (NVDA has been reported to announce them), so test with yours.
 
+Check that your font has U+2011, the non-breaking hyphen `typeset()` puts in
+kennitala and phone numbers. Many don't (Geist and Bespoke Serif among them),
+and the browser then draws that one hyphen from a fallback font.
+
 ## Exceptions
 
 `data/exceptions.txt` is one word per line. `-` is a break, `=` is a compound
