@@ -20,7 +20,14 @@ export {
   settleRag,
   watchRag,
 } from "./rag";
+export { configureSkiptingar } from "./remote";
 export { SettledText } from "./settled-text";
-export { useHyphenate } from "./use-hyphenate";
+export {
+  type HyphenateResult,
+  useAnalyzeWord,
+  useHyphenate,
+  useHyphenateAll,
+  useHyphenateResult,
+} from "./use-hyphenate";
 export { type SettleOptions, useRagPlan, useSettledRag } from "./use-rag";
 export { useSkiptingar } from "./use-skiptingar";

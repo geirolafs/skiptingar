@@ -216,7 +216,7 @@ function Caption({ text }: { text: string }) {
 ```
 
 Use this for text that only exists in the browser, like something a user
-types. The patterns load lazily the first time, about 55 kB brotli (74 kB
+types. The patterns load lazily the first time, about 47 kB brotli (53 kB
 gzip); the rest of the client entry is about 5.5 kB brotli. Until then the
 hook returns the text as it is, and so does it if the chunk fails to load. The
 next component that mounts tries the load again. A component that mounts after
@@ -266,6 +266,30 @@ markup with other metrics is not modelled. It changes nothing for justified
 or right-to-left text, an indented first line, preserved newlines or
 `hyphens: auto`. The first judgement runs after hydration, so a
 server-rendered paragraph can move slightly once.
+
+#### Hyphenate browser text on your server
+
+The patterns are about 47 kB brotli. A page that has a server can skip them:
+mount the handler on a POST route and point the client at it once.
+
+```ts
+// app/api/skiptingar/route.ts
+import { handleSkiptingarRequest } from "skiptingar";
+export const POST = (request: Request) => handleSkiptingarRequest(request);
+```
+
+```tsx
+"use client";
+import { configureSkiptingar } from "skiptingar/client";
+configureSkiptingar({ endpoint: "/api/skiptingar" });
+```
+
+`useHyphenate`, `useHyphenateAll`, `useHyphenateResult` (the text and whether
+it is processed yet) and `useAnalyzeWord` then ask the endpoint. Requests in
+one tick go out as one, answers are cached, and if the endpoint fails the
+hooks load the patterns instead. The handler uses the standard `Request` and
+`Response`, so it also runs in Bun, Deno or a worker; it limits a request to
+200 jobs and 50 000 characters.
 
 For the core itself, `useSkiptingar()` returns it once it has loaded and `null`
 before that, on the server and if the load fails. Mounting starts the load.

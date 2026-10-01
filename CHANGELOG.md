@@ -19,3 +19,6 @@ The first version meant for npm. The API may still change before 1.0.
   `useRagPlan`, `settle` for plain DOM), `useHyphenate` with lazily loaded
   patterns, and `CleanCopy`.
 - `bestBreaks()`: the rag search alone, without a browser.
+- `handleSkiptingarRequest()` and `configureSkiptingar({ endpoint })`: hyphenate
+  browser text on your server, so the patterns never download.
+- The patterns are front-coded: 47 kB brotli instead of 54.

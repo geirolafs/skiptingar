@@ -12,6 +12,8 @@ export type Loader = {
    * unsubscribe function.
    */
   subscribe: (listener: () => void) => () => void;
+  /** Calls `listener` once a load succeeds, without starting one. */
+  watch: (listener: () => void) => () => void;
 };
 
 /**
@@ -52,6 +54,12 @@ export function createLoader(importCore: () => Promise<Core>): Loader {
         listeners.delete(listener);
       };
     },
+    watch(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
   };
 }
 
@@ -73,6 +81,11 @@ export function loadSkiptingar(): Promise<Core> {
  */
 export function subscribeSkiptingar(listener: () => void): () => void {
   return loader.subscribe(listener);
+}
+
+/** Tells React when the core arrives, without starting a load. */
+export function watchSkiptingar(listener: () => void): () => void {
+  return loader.watch(listener);
 }
 
 /**

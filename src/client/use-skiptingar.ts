@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { loadedSkiptingar, subscribeSkiptingar } from "./load";
+import { loadedSkiptingar, subscribeSkiptingar, watchSkiptingar } from "./load";
 
 type Core = typeof import("../index");
 
@@ -19,7 +19,13 @@ function getServerSnapshot(): null {
  * load, so a component that needs the core (to call `analyzeWord`, say) uses
  * this hook. On the server, during hydration and if loading fails it returns
  * `null`. A component that mounts after the load gets the core at once.
+ * With `load: false` it only watches: it returns the core if something else
+ * loaded it, and never starts the download itself.
  */
-export function useSkiptingar(): Core | null {
-  return useSyncExternalStore(subscribeSkiptingar, getSnapshot, getServerSnapshot);
+export function useSkiptingar({ load = true }: { load?: boolean } = {}): Core | null {
+  return useSyncExternalStore(
+    load ? subscribeSkiptingar : watchSkiptingar,
+    getSnapshot,
+    getServerSnapshot
+  );
 }
