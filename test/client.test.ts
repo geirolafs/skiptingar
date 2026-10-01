@@ -5,10 +5,14 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { hyphenate } from "../src";
 import {
+  NO_BREAK_SPACE as CLIENT_NO_BREAK_SPACE,
+  NON_BREAKING_HYPHEN as CLIENT_NON_BREAKING_HYPHEN,
+  SOFT_HYPHEN as CLIENT_SOFT_HYPHEN,
   cleanCopiedPlainText,
   cleanCopiedText,
   loadSkiptingar,
   useHyphenate,
+  useSkiptingar,
 } from "../src/client";
 import {
   cleanClipboard,
@@ -159,6 +163,14 @@ describe("loadSkiptingar", () => {
   });
 });
 
+describe("client constants", () => {
+  test("re-exports the three invisible characters", () => {
+    expect(CLIENT_SOFT_HYPHEN).toBe(SHY);
+    expect(CLIENT_NO_BREAK_SPACE).toBe(NBSP);
+    expect(CLIENT_NON_BREAKING_HYPHEN).toBe(NBH);
+  });
+});
+
 describe("createLoader", () => {
   const fakeCore = {} as Awaited<ReturnType<typeof loadSkiptingar>>;
 
@@ -175,6 +187,56 @@ describe("createLoader", () => {
     expect(loader.loaded()).toBe(fakeCore);
     expect(await loader.load()).toBe(fakeCore);
     expect(calls).toBe(1);
+  });
+
+  test("a retry that succeeds tells every subscriber, also one whose own load failed", async () => {
+    let calls = 0;
+    const loader = createLoader(() => {
+      calls += 1;
+      return calls === 1
+        ? Promise.reject(new Error("chunk failed"))
+        : Promise.resolve(fakeCore);
+    });
+    const seen = { a: 0, b: 0, gone: 0 };
+    const unsubscribeA = loader.subscribe(() => {
+      seen.a += 1;
+    });
+    // The first load fails: nobody is told.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(loader.loaded()).toBeUndefined();
+    expect(seen).toEqual({ a: 0, b: 0, gone: 0 });
+
+    const unsubscribeGone = loader.subscribe(() => {
+      seen.gone += 1;
+    });
+    unsubscribeGone();
+    loader.subscribe(() => {
+      seen.b += 1;
+    });
+    await loader.load();
+    expect(calls).toBe(2);
+    expect(seen).toEqual({ a: 1, b: 1, gone: 0 });
+    unsubscribeA();
+  });
+
+  test("a failed load tells nobody and the next subscribe retries it", async () => {
+    let calls = 0;
+    const loader = createLoader(() => {
+      calls += 1;
+      return Promise.reject(new Error("chunk failed"));
+    });
+    let told = 0;
+    loader.subscribe(() => {
+      told += 1;
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    loader.subscribe(() => {
+      told += 1;
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(told).toBe(0);
+    expect(calls).toBe(2);
   });
 
   test("a failed load rejects, is forgotten, and the next call tries again", async () => {
@@ -203,6 +265,17 @@ describe("useHyphenate on the server", () => {
       createElement(Probe, { text: "Hraðbrautarframkvæmdir" })
     );
     expect(html).toBe("<p>Hraðbrautarframkvæmdir</p>");
+  });
+});
+
+describe("useSkiptingar on the server", () => {
+  function Probe() {
+    return createElement("p", null, useSkiptingar() === null ? "none" : "core");
+  }
+
+  test("returns null, even after the core has loaded", async () => {
+    await loadSkiptingar();
+    expect(renderToStaticMarkup(createElement(Probe))).toBe("<p>none</p>");
   });
 });
 

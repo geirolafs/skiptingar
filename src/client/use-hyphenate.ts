@@ -1,30 +1,9 @@
 "use client";
 
-import { useMemo, useSyncExternalStore } from "react";
-import { loadedSkiptingar, loadSkiptingar } from "./load";
+import { useMemo } from "react";
 import type { UseHyphenateOptions } from "./options";
 import { applyOptionsKey, optionsKey } from "./options";
-
-/** Starts loading the core and tells React when it arrives. A failed load is ignored. */
-function subscribe(onChange: () => void): () => void {
-  let active = true;
-  loadSkiptingar().then(
-    () => {
-      if (active) {
-        onChange();
-      }
-    },
-    () => undefined
-  );
-  return () => {
-    active = false;
-  };
-}
-
-/** On the server there is no core, and the first client render of a hydrating tree must match it. */
-function getServerSnapshot(): undefined {
-  return undefined;
-}
+import { useSkiptingar } from "./use-skiptingar";
 
 /**
  * Hyphenates (and typesets) a string in the browser. The core loads lazily.
@@ -34,7 +13,7 @@ function getServerSnapshot(): undefined {
  * render. Options are compared by value.
  */
 export function useHyphenate(text: string, options?: UseHyphenateOptions): string {
-  const core = useSyncExternalStore(subscribe, loadedSkiptingar, getServerSnapshot);
+  const core = useSkiptingar();
   const key = optionsKey(options);
 
   return useMemo(

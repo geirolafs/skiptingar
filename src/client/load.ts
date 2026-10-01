@@ -5,6 +5,13 @@ export type Loader = {
   load: () => Promise<Core>;
   /** The core once it has loaded, otherwise `undefined`. */
   loaded: () => Core | undefined;
+  /**
+   * Calls `listener` once when a load succeeds, for every listener subscribed
+   * at that moment, whichever call started that load. Subscribing also starts a
+   * load, or retries a failed one. A failed load tells nobody. Returns the
+   * unsubscribe function.
+   */
+  subscribe: (listener: () => void) => () => void;
 };
 
 /**
@@ -15,22 +22,36 @@ export type Loader = {
 export function createLoader(importCore: () => Promise<Core>): Loader {
   let loading: Promise<Core> | undefined;
   let core: Core | undefined;
+  const listeners = new Set<() => void>();
+
+  const load = (): Promise<Core> => {
+    loading ??= importCore().then(
+      loaded => {
+        core = loaded;
+        for (const listener of [...listeners]) {
+          listener();
+        }
+        return loaded;
+      },
+      (error: unknown) => {
+        loading = undefined;
+        throw error;
+      }
+    );
+    return loading;
+  };
 
   return {
-    load() {
-      loading ??= importCore().then(
-        loaded => {
-          core = loaded;
-          return loaded;
-        },
-        (error: unknown) => {
-          loading = undefined;
-          throw error;
-        }
-      );
-      return loading;
-    },
+    load,
     loaded: () => core,
+    subscribe(listener) {
+      listeners.add(listener);
+      // A failed load is not reported here; the next subscriber retries it.
+      load().catch(() => undefined);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
   };
 }
 
@@ -44,6 +65,14 @@ const loader = createLoader(() => import("../index"));
  */
 export function loadSkiptingar(): Promise<Core> {
   return loader.load();
+}
+
+/**
+ * Tells React when the core arrives and starts the load. Every subscriber is
+ * told on a successful load, even when another subscriber's call started it.
+ */
+export function subscribeSkiptingar(listener: () => void): () => void {
+  return loader.subscribe(listener);
 }
 
 /**

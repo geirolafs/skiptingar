@@ -188,6 +188,23 @@ mounts tries the load again. A component that mounts after the load gets the
 processed text on its first render. Anything you can do on the server, do on
 the server.
 
+For the core itself, `useSkiptingar()` returns it once it has loaded and `null`
+before that, on the server and if the load fails. Mounting starts the load.
+
+```tsx
+"use client";
+import { useSkiptingar } from "skiptingar/client";
+
+function Breaks({ word }: { word: string }) {
+  const core = useSkiptingar();
+  return <p>{core ? core.analyzeWord(word).breaks.join(", ") : word}</p>;
+}
+```
+
+The client entry also re-exports `SOFT_HYPHEN`, `NO_BREAK_SPACE` and
+`NON_BREAKING_HYPHEN`, so a client component can name them without importing
+the core and its pattern data.
+
 `<CleanCopy />` mounts once per page and takes soft hyphens and no-break
 spaces out of copied text, so pasted text and search stay clean.
 
