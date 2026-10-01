@@ -4,7 +4,7 @@ import type { RefObject } from "react";
 import { useLayoutEffect, useState } from "react";
 import { flushSync } from "react-dom";
 import { applyRag, type Hang, type RagOptions } from "../rag";
-import { type RagPlan, settleRag } from "./rag";
+import { forgetMeasurements, type RagPlan, settleRag } from "./rag";
 
 type Settled = { text: string; plan: RagPlan };
 
@@ -23,15 +23,19 @@ function samePlan(a: RagPlan, b: RagPlan): boolean {
  * over several elements; `useSettledRag` applies it to one string.
  *
  * It judges again when the text changes, when the element's width changes
- * and once the page's fonts have loaded, since all three move the line
- * breaks. Until the first judgement, on the server and when `enabled` is
- * false, the plan changes nothing.
+ * and whenever fonts finish loading, since all three move the line breaks.
+ * Until the first judgement, on the server and when `enabled` is false, the
+ * plan changes nothing. While enabled it sets `text-wrap: wrap` on the
+ * element, since the plan relies on greedy wrapping (`pretty` and `balance`
+ * would move the breaks again).
  *
- * Every judgement lands before the browser paints, so no frame shows the old
- * breaks at a new width: the first runs in a layout effect, and the ones a
- * resize or a font load start are flushed at once (`flushSync`) from the
- * observer, which runs between layout and paint. The first judgement on a
- * server-rendered page still lands after the server's HTML is on screen.
+ * A judgement for a new width lands before the browser paints, so no frame
+ * shows the old breaks at a new width: the first runs in a layout effect, and
+ * the ones a resize starts are flushed at once (`flushSync`) from the
+ * observer, which runs between layout and paint. A judgement after a font
+ * load runs from the font event, so the new font can show for one frame with
+ * the old breaks. The first judgement on a server-rendered page still lands
+ * after the server's HTML is on screen.
  */
 export function useRagPlan(
   ref: RefObject<HTMLElement | null>,
@@ -49,9 +53,13 @@ export function useRagPlan(
     if (!(enabled && element)) {
       return;
     }
+    // The plan relies on greedy wrapping.
+    const wrapBefore = element.style.getPropertyValue("text-wrap");
+    element.style.setProperty("text-wrap", "wrap");
     let lastWidth = -1;
     const judge = () => {
-      const width = Math.round(element.getBoundingClientRect().width);
+      // The layout width, which a transform such as a scale-in does not change.
+      const width = element.offsetWidth;
       // Forbidding a break changes the height, not the width: only a new
       // width, or the first run, is worth judging again.
       if (width === lastWidth) {
@@ -78,20 +86,27 @@ export function useRagPlan(
       }
     });
     observer.observe(element);
-    let alive = true;
-    document.fonts?.ready.then(() => {
-      if (!alive) {
-        return;
-      }
+    // Fonts that are still loading move the breaks once they arrive, and so
+    // does a face first used later (an italic, a heavier weight).
+    const fonts = typeof document === "undefined" ? undefined : document.fonts;
+    const onFonts = () => {
+      forgetMeasurements(element);
       lastWidth = -1;
       const plan = judge();
       if (plan) {
         flushSync(() => store(plan));
       }
-    });
+    };
+    fonts?.addEventListener("loadingdone", onFonts);
+    let alive = true;
+    if (fonts && fonts.status !== "loaded") {
+      fonts.ready.then(() => alive && onFonts());
+    }
     return () => {
       alive = false;
       observer.disconnect();
+      fonts?.removeEventListener("loadingdone", onFonts);
+      element.style.setProperty("text-wrap", wrapBefore);
     };
   }, [ref, text, enabled, optionsKey]);
 

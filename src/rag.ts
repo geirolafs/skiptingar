@@ -4,15 +4,15 @@
  *
  * A typesetter looks at each line end. A short word such as "og" or "í" left
  * at the end reads badly; a word that sticks out past the lines around it
- * leaves a hole in the edge. The fix is the same for both: push the line's
- * last word down to the next line, set the paragraph again, and keep the
- * move only if the whole edge got better. Sometimes the move makes the lines
- * below worse, and the word stays.
+ * leaves a hole in the edge; a last line of one word, or of the tail of a
+ * hyphenated one, looks lost. `bestBreaks` weighs every way to break the
+ * paragraph and keeps the cheapest edge, so a word moves down only when the
+ * whole paragraph is better for it.
  *
  * This file holds the parts that need no browser: which words are short, how
- * a set of lines is scored, and how the moves are written into the text. The
- * client entry (`client/rag.ts`) measures the real lines and runs the
- * judgement.
+ * lines are scored, the search itself (given where each character starts)
+ * and how the result is written into the text. The client entry
+ * (`client/rag.ts`) measures the real text and checks the plan in the browser.
  */
 import { NO_BREAK_SPACE, SOFT_HYPHEN } from "./characters";
 
@@ -164,6 +164,18 @@ export type MeasuredLine = {
 
 export type RagOptions = {
   /**
+   * What a last line of a single word costs, like "Rangárvöllum." alone. Its
+   * gap is free (a last line is meant to be short), but one word on its own
+   * looks lost. The default makes it about as bad as a line left half empty.
+   * 0 ignores it.
+   */
+  runtWeight?: number;
+  /**
+   * What it costs when the line before the last ends in a hyphen, so the last
+   * line is the tail of a broken word ("völlum."). 0 ignores it.
+   */
+  lastHyphenWeight?: number;
+  /**
    * What one short word left at a line's end costs. A line short by a fifth
    * of the measure costs 0.04 for its gap, so the default makes a hanging
    * "og" about as bad as that. Higher moves more of them down.
@@ -177,8 +189,8 @@ export type RagOptions = {
   holeWeight?: number;
   /**
    * How much a step between two lines costs: a line that juts out past the
-   * one above it, or falls far short of it. The step (as a share of the
-   * measure) is squared and multiplied by this.
+   * one above it, or falls short of it. The step (as a share of the measure)
+   * is squared and multiplied by this, so small steps cost little.
    */
   stepWeight?: number;
   /** What any line ending in a hyphen costs, so a break is used only when it helps. */
@@ -206,6 +218,8 @@ export type RagOptions = {
 };
 
 export const DEFAULT_RAG_OPTIONS: Required<RagOptions> = {
+  runtWeight: 0.25,
+  lastHyphenWeight: 0.25,
   shortWordWeight: 0.04,
   holeWeight: 6,
   stepWeight: 2,
@@ -215,6 +229,11 @@ export const DEFAULT_RAG_OPTIONS: Required<RagOptions> = {
   ladderWeight: 0.02,
   overshoot: 0,
 };
+
+/** One option, or its default. `??`, not a spread: `{ holeWeight: undefined }` gets the default. */
+function weightOf<K extends keyof RagOptions>(options: RagOptions, key: K): number {
+  return options[key] ?? DEFAULT_RAG_OPTIONS[key];
+}
 
 /**
  * What one line costs, as any line but the last; `before` and `after` are
@@ -227,9 +246,7 @@ export function lineCost(
   measure: number,
   options: RagOptions = {}
 ): number {
-  // `??`, not a spread: a caller passing `{ holeWeight: undefined }` gets the default.
-  const weight = <K extends keyof RagOptions>(key: K) =>
-    options[key] ?? DEFAULT_RAG_OPTIONS[key];
+  const weight = (key: keyof RagOptions) => weightOf(options, key);
   const gap = Math.max(0, measure - line.width) / measure;
   let cost = gap * gap;
   if (line.hangingShortWord) {
@@ -262,8 +279,8 @@ export function lineCost(
  * - Fullness: every line but the last adds the square of its gap at the
  *   right, as a share of the measure, so one large gap costs more than two
  *   small ones.
- * - Steps: a line that juts out past the one above it, or falls far short of
- *   it, squared, times `stepWeight`.
+ * - Steps: a line that juts out past the one above it, or falls short of it,
+ *   squared, times `stepWeight`.
  * - Holes: a line shorter than both lines around it reads as a bite out of
  *   the edge. The depth of the bite, squared, times `holeWeight`.
  * - Short words: each one left at a line's end adds `shortWordWeight`.
@@ -273,7 +290,8 @@ export function lineCost(
  *
  * A line wider than the measure (a word that does not fit) costs far more
  * than any of these. The last line counts for none of them: it is meant to
- * be short.
+ * be short. (`bestBreaks` also weighs the last line: see `runtWeight` and
+ * `lastHyphenWeight`. This function is the plain score of given lines.)
  */
 export function ragCost(
   lines: readonly MeasuredLine[],
@@ -294,4 +312,387 @@ export function ragCost(
     }
   });
   return cost;
+}
+
+/** What a line wider than the measure costs: far more than any other fault. */
+const OVERFLOW_COST = 10;
+
+/** Within this many px of the measure, a fit is too close to trust. */
+const SLACK = 0.75;
+
+/**
+ * Where each character of the text starts along one unbroken line (`x`, one
+ * more entry than the text has characters), the width of the hyphen drawn at
+ * a soft-hyphen break, the measure, and how far a line may overhang, all in px.
+ */
+export type Metrics = {
+  x: Float64Array;
+  hyphen: number;
+  measure: number;
+  overshoot: number;
+};
+
+/**
+ * The best breaks for a paragraph: the opportunities to forbid so a greedy
+ * browser sets them, the line ends that overhang, every break between two
+ * lines (the index of the last character before it and the first after it),
+ * how many lines there are, and what the layout costs (lower is better).
+ */
+export type BreakPlan = {
+  forbidden: number[];
+  hangs: Hang[];
+  ends: { before: number; after: number }[];
+  lines: number;
+  cost: number;
+};
+
+/**
+ * A place a line may end. `end` is where the line's text stops, `next` where
+ * the next line starts. A space or soft hyphen sits between them and can be
+ * forbidden. A line also breaks after a dash, which the dash stays on and
+ * which cannot be forbidden.
+ */
+type Opportunity = {
+  at: number;
+  end: number;
+  next: number;
+  kind: "space" | "hyphen" | "dash";
+};
+
+const DASHES = new Set(["-", "–", "—"]);
+const DIGIT = /\p{Nd}/u;
+const WORD_SEPARATOR = /[  ]/;
+const LETTER = /\p{L}/u;
+
+/**
+ * Every place the browser may break the text, in order: plain spaces, soft
+ * hyphens, and after a dash between two non-spaces (`Norður-Ameríku`,
+ * `1990–2000`). A hyphen-minus before a digit is not one (`COVID-19`).
+ */
+function opportunities(text: string): Opportunity[] {
+  const found: Opportunity[] = [];
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index] ?? "";
+    if (character === " ") {
+      found.push({ at: index, end: index, next: index + 1, kind: "space" });
+    } else if (character === SOFT_HYPHEN) {
+      found.push({ at: index, end: index, next: index + 1, kind: "hyphen" });
+    } else if (DASHES.has(character)) {
+      const before = text[index - 1] ?? " ";
+      const after = text[index + 1] ?? " ";
+      const breaksAfter =
+        !/\s/.test(before) &&
+        !/\s/.test(after) &&
+        after !== SOFT_HYPHEN &&
+        !(character === "-" && DIGIT.test(after));
+      if (breaksAfter) {
+        found.push({ at: index, end: index + 1, next: index + 1, kind: "dash" });
+      }
+    }
+  }
+  return found;
+}
+
+/**
+ * The letters of the word on each side of a soft hyphen at `index`: the
+ * pieces a break there would leave. Soft hyphens inside the word are
+ * skipped, other characters end it.
+ */
+function pieces(text: string, index: number): { before: number; after: number } {
+  const count = (from: number, step: 1 | -1) => {
+    let letters = 0;
+    for (let at = from; at >= 0 && at < text.length; at += step) {
+      const character = text[at] ?? "";
+      if (LETTER.test(character)) {
+        letters += 1;
+      } else if (character !== SOFT_HYPHEN) {
+        break;
+      }
+    }
+    return letters;
+  };
+  return { before: count(index - 1, -1), after: count(index + 1, 1) };
+}
+
+/** Where the character that ends just before `end` starts: two code units for an emoji. */
+export function lastCharacterStart(text: string, end: number): number {
+  const low = text.charCodeAt(end - 1);
+  const high = text.charCodeAt(end - 2);
+  const pair = low >= 0xdc00 && low <= 0xdfff && high >= 0xd800 && high <= 0xdbff;
+  return pair ? end - 2 : end - 1;
+}
+
+/** The character a hang starts at, whole: one code unit, or two for an emoji. */
+export function hangCharacter(text: string, index: number): string {
+  const high = text.charCodeAt(index);
+  return high >= 0xd800 && high <= 0xdbff
+    ? text.slice(index, index + 2)
+    : text.slice(index, index + 1);
+}
+
+/**
+ * How many of the cheapest ways to reach one line end are carried on. The
+ * search keeps one way per pair of line starts, and most of those are far
+ * dearer than the best. At 16 the plan matched the full search on all 460
+ * layouts tried (the playground's ten texts at 23 widths), in 40% of the
+ * time; at 8 a few came out worse.
+ */
+const MAX_STATES = 16;
+
+/** The states to carry on from one line end: all of them, or the cheapest `MAX_STATES`. */
+function cheapest(states: Map<number, State>): Iterable<State> {
+  if (states.size <= MAX_STATES) {
+    return states.values();
+  }
+  return [...states.values()].sort((a, b) => a.cost - b.cost).slice(0, MAX_STATES);
+}
+
+type State = {
+  /** Indices into the opportunity list: where the line before the last starts, and the last line. */
+  before: number;
+  start: number;
+  end: number;
+  cost: number;
+  lines: number;
+  from: State | null;
+};
+
+/**
+ * The best set of line breaks for the whole paragraph, the way TeX sets a
+ * paragraph (Knuth and Plass) but for a ragged edge: it weighs every way to
+ * break the text, not one line at a time, and keeps the one with the lowest
+ * cost: `lineCost` summed over every line but the last, plus the last line's
+ * `runtWeight` and `lastHyphenWeight`.
+ *
+ * The browser then has to set it. The element wraps greedily (`text-wrap:
+ * wrap`), so each line breaks at the last place that fits; to make that the
+ * chosen break, every later place on the same line that would still fit is
+ * forbidden. Only layouts the browser can reproduce that way count: a line
+ * and the one after it must not fit together, and a break after a dash,
+ * which cannot be forbidden, must not fit on a line that should end earlier.
+ * A word wider than the measure gets a line of its own, at a high cost, as
+ * the browser would set it.
+ *
+ * `metrics.x` is where each character starts on one unbroken line. Returns
+ * `null` only for text with nowhere to break.
+ */
+export function bestBreaks(
+  text: string,
+  metrics: Metrics,
+  options: RagOptions = {}
+): BreakPlan | null {
+  const { x, hyphen, measure, overshoot } = metrics;
+  const shortWords = new Set(shortWordSpaces(text));
+  // The paragraph's start, every opportunity, its end.
+  const breaks: Opportunity[] = [
+    { at: -1, end: 0, next: 0, kind: "space" },
+    ...opportunities(text),
+    { at: text.length, end: text.length, next: text.length, kind: "space" },
+  ];
+  const last = breaks.length - 1;
+  if (last < 2) {
+    return null;
+  }
+  const at = (k: number) => breaks[k] as Opportunity;
+  const isHyphen = (k: number) => k < last && at(k).kind === "hyphen";
+
+  // Worked out once per opportunity, since the search asks again and again:
+  // where a line after it starts, where a line ending at it stops (with the
+  // hyphen drawn there), how far such a line may overhang, and what it ends with.
+  const count = breaks.length;
+  const startX = new Float64Array(count);
+  const endX = new Float64Array(count);
+  const allowed = new Float64Array(count);
+  const endings: Pick<MeasuredLine, "hangingShortWord" | "hyphen">[] = [];
+  for (let k = 0; k < count; k += 1) {
+    const { at: index, end, next } = at(k);
+    const hyphenHere = isHyphen(k);
+    startX[k] = x[next] ?? 0;
+    endX[k] = (x[end] ?? 0) + (hyphenHere ? hyphen : 0);
+    // The allowance, and never more than the line's last character's
+    // advance. Not at a soft hyphen: the browser draws the hyphen after the
+    // last letter, and pulling the letter back would make them overlap.
+    allowed[k] =
+      overshoot <= 0 || hyphenHere
+        ? 0
+        : Math.min(overshoot, (x[end] ?? 0) - (x[lastCharacterStart(text, end)] ?? 0));
+    endings.push({
+      hangingShortWord: shortWords.has(index),
+      hyphen: hyphenHere ? pieces(text, index) : undefined,
+    });
+  }
+
+  const width = (from: number, to: number) => (endX[to] ?? 0) - (startX[from] ?? 0);
+  const allowance = (to: number) => allowed[to] ?? 0;
+  // How far the line actually goes past the edge, if it does and may: the
+  // cheat is a last resort, for a line that would not fit otherwise.
+  const over = (from: number, to: number) => {
+    const past = width(from, to) - (measure - SLACK);
+    return past > 0 && past <= allowance(to) ? past : 0;
+  };
+  // How wide the line sets: a line that overhangs sets at the measure.
+  const set = (from: number, to: number) => width(from, to) - over(from, to);
+  const fits = (from: number, to: number) => set(from, to) <= measure - SLACK;
+  // Past this, no line ending here can fit, even overhanging.
+  const beyond = (from: number, to: number) =>
+    width(from, to) - overshoot > measure - SLACK;
+  const line = (from: number, to: number): MeasuredLine => {
+    const ending = endings[to];
+    return {
+      width: Math.min(set(from, to), measure),
+      hangingShortWord: ending?.hangingShortWord,
+      hyphen: ending?.hyphen,
+    };
+  };
+  // Every weight resolved once, so `lineCost` finds each without a fallback.
+  const weights: Required<RagOptions> = { ...DEFAULT_RAG_OPTIONS };
+  for (const name of Object.keys(weights) as (keyof RagOptions)[]) {
+    weights[name] = weightOf(options, name);
+  }
+  // A line from `from` that ends at `to` can be reproduced: no dash break
+  // after `to` still fits on it, since that break could not be forbidden.
+  const reproducible = (from: number, to: number) => {
+    const past = over(from, to);
+    for (let later = to + 1; later < last; later += 1) {
+      if (width(from, later) - past > measure + SLACK) {
+        return true;
+      }
+      if (at(later).kind === "dash") {
+        return false;
+      }
+    }
+    return true;
+  };
+  // The lines that may follow a line ending at `from`: every end that fits,
+  // or, when not even the next piece fits, that piece alone (it overflows).
+  const nextEnds = (from: number): number[] => {
+    if (!fits(from, from + 1)) {
+      return [from + 1];
+    }
+    const ends: number[] = [];
+    for (let to = from + 1; to <= last && !beyond(from, to); to += 1) {
+      if (fits(from, to) && (to === last || reproducible(from, to))) {
+        ends.push(to);
+      }
+    }
+    return ends;
+  };
+  const overflowCost = (from: number, to: number) =>
+    width(from, to) - over(from, to) > measure + SLACK ? OVERFLOW_COST : 0;
+
+  // The cheapest state per (start of the line before, start of the last line),
+  // grouped by where the last line ends.
+  const ending: Map<number, State>[] = breaks.map(() => new Map());
+  const key = (before: number, start: number) => before * breaks.length + start;
+  for (const end of nextEnds(0)) {
+    ending[end]?.set(key(-1, 0), {
+      before: -1,
+      start: 0,
+      end,
+      cost: overflowCost(0, end),
+      lines: 1,
+      from: null,
+    });
+  }
+
+  for (let end = 1; end < last; end += 1) {
+    const states = ending[end];
+    if (!states || states.size === 0) {
+      continue;
+    }
+    // Every line that may follow, worked out once for all the states here.
+    const following = nextEnds(end).map(next => ({
+      next,
+      line: line(end, next),
+      over: over(end, next),
+      overflow: overflowCost(end, next),
+    }));
+    for (const state of cheapest(states)) {
+      const previous = state.before >= 0 ? line(state.before, state.start) : undefined;
+      const current = line(state.start, end);
+      const overCurrent = over(state.start, end);
+      const k = key(state.start, end);
+      for (const after of following) {
+        // The browser breaks here only if this line and the next do not fit
+        // together. Both lines' overhangs keep their negative spacing in a
+        // merged line, so they shorten it there too.
+        const merged = width(state.start, after.next) - overCurrent - after.over;
+        if (merged <= measure + SLACK) {
+          continue;
+        }
+        const cost =
+          state.cost +
+          lineCost(current, previous, after.line, measure, weights) +
+          after.overflow;
+        const known = ending[after.next]?.get(k);
+        if (!known || cost < known.cost) {
+          ending[after.next]?.set(k, {
+            before: state.start,
+            start: end,
+            end: after.next,
+            cost,
+            lines: state.lines + 1,
+            from: state,
+          });
+        }
+      }
+    }
+  }
+
+  // The last line: one word alone, or the tail of a hyphenated word.
+  const lastLineCost = (state: State) => {
+    if (state.lines < 2) {
+      return 0;
+    }
+    let cost = 0;
+    const tail = text.slice(at(state.start).next).trim();
+    if (!WORD_SEPARATOR.test(tail)) {
+      cost += weights.runtWeight;
+    }
+    if (at(state.start).kind === "hyphen") {
+      cost += weights.lastHyphenWeight;
+    }
+    return cost;
+  };
+  let best: State | null = null;
+  let bestCost = Number.POSITIVE_INFINITY;
+  for (const state of ending[last]?.values() ?? []) {
+    const total = state.cost + lastLineCost(state);
+    if (total < bestCost) {
+      best = state;
+      bestCost = total;
+    }
+  }
+  if (!best) {
+    return null;
+  }
+
+  // For every line but the last: the places after its end that would still
+  // fit on it. And every line that overhangs, the last one too.
+  const forbidden: number[] = [];
+  const hung: Hang[] = [];
+  const ends: { before: number; after: number }[] = [];
+  for (let state: State | null = best; state; state = state.from) {
+    const past = over(state.start, state.end);
+    if (past > 0) {
+      hung.push({ index: lastCharacterStart(text, at(state.end).end), width: past });
+    }
+    if (state === best) {
+      continue;
+    }
+    ends.push({ before: at(state.end).end - 1, after: at(state.end).next });
+    for (let later = state.end + 1; later < last; later += 1) {
+      if (width(state.start, later) - past > measure + SLACK) {
+        break;
+      }
+      forbidden.push(at(later).at);
+    }
+  }
+  return {
+    forbidden: forbidden.sort((a, b) => a - b),
+    hangs: hung.sort((a, b) => a.index - b.index),
+    ends: ends.sort((a, b) => a.after - b.after),
+    lines: best.lines,
+    cost: bestCost,
+  };
 }

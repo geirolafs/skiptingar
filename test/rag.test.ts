@@ -196,3 +196,9 @@ describe("overhangAllowance", () => {
     expect(overhangAllowance(0, 20)).toBe(0);
   });
 });
+
+describe("overhangAllowance never exceeds what was asked", () => {
+  test("a small allowance stays small", () => {
+    expect(overhangAllowance(0.1, 16) / 16).toBeCloseTo(0.1);
+  });
+});

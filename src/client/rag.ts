@@ -1,42 +1,13 @@
 import {
+  type BreakPlan,
+  bestBreaks,
   breakOpportunities,
   forbidBreaks,
   type Hang,
-  lineCost,
-  type MeasuredLine,
+  hangCharacter,
+  type Metrics,
   type RagOptions,
-  shortWordSpaces,
 } from "../rag";
-
-const SOFT_HYPHEN = "­";
-const LETTER = /\p{L}/u;
-
-/**
- * The letters of the word on each side of a soft hyphen at `index`: the
- * pieces a break there would leave. Soft hyphens inside the word are
- * skipped, other characters end it.
- */
-function pieces(text: string, index: number): { before: number; after: number } {
-  const count = (from: number, step: 1 | -1) => {
-    let letters = 0;
-    for (let at = from; at >= 0 && at < text.length; at += step) {
-      const character = text[at] ?? "";
-      if (LETTER.test(character)) {
-        letters += 1;
-      } else if (character !== SOFT_HYPHEN) {
-        break;
-      }
-    }
-    return letters;
-  };
-  return { before: count(index - 1, -1), after: count(index + 1, 1) };
-}
-
-/**
- * Where each character starts along one unbroken line, the hyphen's width,
- * the measure, and how far punctuation may hang past it, all in px.
- */
-type Metrics = { x: Float64Array; hyphen: number; measure: number; overshoot: number };
 
 /**
  * Sets the text on one line in the hidden copy (`nowrap`) and reads where
@@ -45,6 +16,34 @@ type Metrics = { x: Float64Array; hyphen: number; measure: number; overshoot: nu
  * character's position. Also reads the width of the hyphen the browser
  * draws at a break.
  */
+type Measured = { key: string; x: Float64Array; hyphen: number };
+
+/**
+ * The last measurement of each element's text. Where the characters start
+ * does not depend on the width, so dragging the width only runs the search
+ * again. The key holds the text and everything about the font that moves the
+ * characters; `forgetMeasurements` drops it when a font finishes loading,
+ * which changes the widths without changing the style.
+ */
+const measurements = new WeakMap<HTMLElement, Measured>();
+
+function fontKey(style: CSSStyleDeclaration): string {
+  return [
+    style.font,
+    style.letterSpacing,
+    style.wordSpacing,
+    style.fontKerning,
+    style.fontFeatureSettings,
+    style.fontVariationSettings,
+    style.textTransform,
+  ].join("|");
+}
+
+/** Drops the cached measurement of `element`, so the next `settleRag` measures again. */
+export function forgetMeasurements(element: HTMLElement): void {
+  measurements.delete(element);
+}
+
 function measureText(
   copy: HTMLElement,
   text: string,
@@ -79,14 +78,14 @@ function measureText(
  * How far a line may go past the edge, in px, for text of `fontSize` px.
  * `overshoot` is the allowance in em at 16px text, about one letter at 0.5.
  * It shrinks as a share of the type as the type grows (by the square root of
- * the size), so a title cheats less than body text, and it never goes below
- * 0.15 em.
+ * the size), so a title cheats less than body text, down to 0.15 em, and
+ * never more than `overshoot` itself.
  */
 export function overhangAllowance(overshoot: number, fontSize: number): number {
   if (overshoot <= 0 || fontSize <= 0) {
     return 0;
   }
-  const em = Math.max(0.15, Math.min(overshoot, overshoot * Math.sqrt(16 / fontSize)));
+  const em = Math.min(overshoot, Math.max(0.15, overshoot * Math.sqrt(16 / fontSize)));
   return em * fontSize;
 }
 
@@ -120,9 +119,10 @@ function fill(
   };
   let from = 0;
   for (const hang of hangs) {
+    const character = hangCharacter(text, hang.index);
     add(text.slice(from, hang.index), from);
-    add(text.slice(hang.index, hang.index + 1), hang.index, hang.width);
-    from = hang.index + 1;
+    add(character, hang.index, hang.width);
+    from = hang.index + character.length;
   }
   add(text.slice(from), from);
   return nodes;
@@ -130,15 +130,13 @@ function fill(
 
 /**
  * True when the copy, filled with `text` and its hangs, breaks every line
- * exactly where the plan says: at each planned end, the characters on its
+ * exactly where the plan says: at each planned break, the characters on its
  * two sides sit on different lines, and there are no more lines than planned.
  */
 function setsAsPlanned(
   copy: HTMLElement,
   text: string,
-  hangs: readonly Hang[],
-  ends: readonly number[],
-  lines: number
+  { hangs, ends, lines }: Pick<BreakPlan, "hangs" | "ends" | "lines">
 ): boolean {
   const nodes = fill(copy, text, hangs);
   const topAt = (index: number): number | null => {
@@ -163,8 +161,8 @@ function setsAsPlanned(
     return top;
   };
   for (const end of ends) {
-    const before = topAt(end - 1);
-    const after = topAt(end + 1);
+    const before = topAt(end.before);
+    const after = topAt(end.after);
     if (before === null || after === null || after <= before) {
       return false;
     }
@@ -180,177 +178,24 @@ function setsAsPlanned(
   return tops.size === lines;
 }
 
-/** Within this many px of the measure, a fit is too close to trust. */
-const SLACK = 0.75;
-
-type State = {
-  /** Indices into the break list: where the line before the last starts, and the last line. */
-  before: number;
-  start: number;
-  end: number;
-  cost: number;
-  lines: number;
-  from: State | null;
-};
-
-type Plan = { forbidden: number[]; hangs: Hang[]; ends: number[]; lines: number };
-
-/**
- * The best set of line breaks for the whole paragraph, the way TeX sets a
- * paragraph (Knuth and Plass) but for a ragged edge: it weighs every way to
- * break the text, not one line at a time, and keeps the one with the lowest
- * `lineCost` summed over its lines (gaps, steps, holes, short words,
- * hyphens).
- *
- * The browser then has to set it. The element wraps greedily (`text-wrap:
- * wrap`), so each line breaks at the last place that fits; to make that the
- * chosen break, every later place on the same line that would still fit is
- * forbidden. Only layouts the browser can reproduce that way count: a line
- * and the one after it must not fit together on one line.
- *
- * Returns the opportunities to forbid and the number of lines planned, or
- * `null` when no layout fits (a word wider than the measure).
- */
-function bestBreaks(text: string, metrics: Metrics, options: RagOptions): Plan | null {
-  const { x, hyphen, measure, overshoot } = metrics;
-  const shortWords = new Set(shortWordSpaces(text));
-  // The breaks: the paragraph's start, every opportunity, its end.
-  const breaks = [-1, ...breakOpportunities(text), text.length];
-  const last = breaks.length - 1;
-  const isHyphen = (k: number) => k < last && text[breaks[k] ?? -1] === SOFT_HYPHEN;
-
-  const width = (from: number, to: number) => {
-    const start = (breaks[from] ?? -1) + 1;
-    const end = breaks[to] ?? text.length;
-    return (x[end] ?? 0) - (x[start] ?? 0) + (isHyphen(to) ? hyphen : 0);
-  };
-  // How far a line ending at `to` may go past the edge: the allowance, and
-  // never more than its last character, so only part of one character
-  // sticks out. Not at a soft hyphen: the browser draws the hyphen after
-  // the last letter, and pulling the letter back would make them overlap.
-  const allowance = (to: number) => {
-    if (overshoot <= 0 || isHyphen(to)) {
-      return 0;
-    }
-    const end = breaks[to] ?? 0;
-    return Math.min(overshoot, (x[end] ?? 0) - (x[end - 1] ?? 0));
-  };
-  // How far the line actually goes past the edge, if it does and may: the
-  // cheat is a last resort, for a line that would not fit otherwise.
-  const over = (from: number, to: number) => {
-    const past = width(from, to) - (measure - SLACK);
-    return past > 0 && past <= allowance(to) ? past : 0;
-  };
-  // How wide the line sets: a line that overhangs sets at the measure.
-  const set = (from: number, to: number) => width(from, to) - over(from, to);
-  const line = (from: number, to: number): MeasuredLine => {
-    const at = breaks[to] ?? 0;
-    return {
-      width: set(from, to),
-      hangingShortWord: shortWords.has(at),
-      hyphen: isHyphen(to) ? pieces(text, at) : undefined,
-    };
-  };
-  const fits = (from: number, to: number) => set(from, to) <= measure - SLACK;
-  // Past this, no line ending here can fit, even overhanging.
-  const beyond = (from: number, to: number) =>
-    width(from, to) - overshoot > measure - SLACK;
-
-  // The cheapest state per (start of the line before, start of the last line),
-  // grouped by where the last line ends.
-  const ending: Map<string, State>[] = breaks.map(() => new Map());
-  for (let end = 1; end <= last && !beyond(0, end); end += 1) {
-    if (!fits(0, end)) {
-      continue;
-    }
-    ending[end]?.set("-1|0", {
-      before: -1,
-      start: 0,
-      end,
-      cost: 0,
-      lines: 1,
-      from: null,
-    });
-  }
-
-  for (let end = 1; end < last; end += 1) {
-    for (const state of ending[end]?.values() ?? []) {
-      const previous = state.before >= 0 ? line(state.before, state.start) : undefined;
-      const current = line(state.start, end);
-      for (let next = end + 1; next <= last && !beyond(end, next); next += 1) {
-        if (!fits(end, next)) {
-          continue;
-        }
-        // The browser breaks here only if this line and the next do not fit
-        // together. Both lines' overhangs keep their negative margin in a
-        // merged line, so they shorten it there too.
-        const merged =
-          width(state.start, next) - over(state.start, end) - over(end, next);
-        if (merged <= measure + SLACK) {
-          continue;
-        }
-        const cost =
-          state.cost + lineCost(current, previous, line(end, next), measure, options);
-        const key = `${state.start}|${end}`;
-        const known = ending[next]?.get(key);
-        if (!known || cost < known.cost) {
-          ending[next]?.set(key, {
-            before: state.start,
-            start: end,
-            end: next,
-            cost,
-            lines: state.lines + 1,
-            from: state,
-          });
-        }
-      }
-    }
-  }
-
-  let best: State | null = null;
-  for (const state of ending[last]?.values() ?? []) {
-    if (!best || state.cost < best.cost) {
-      best = state;
-    }
-  }
-  if (!best) {
-    return null;
-  }
-
-  // For every line but the last: the places after its end that would still
-  // fit on it. And every line that overhangs, the last one too.
-  const forbidden: number[] = [];
-  const hung: Hang[] = [];
-  const ends: number[] = [];
-  for (let state: State | null = best; state; state = state.from) {
-    const past = over(state.start, state.end);
-    if (past > 0) {
-      const end = breaks[state.end] ?? 0;
-      hung.push({ index: end - 1, width: past });
-    }
-    if (state === best) {
-      continue;
-    }
-    ends.push(breaks[state.end] ?? 0);
-    for (let later = state.end + 1; later < last; later += 1) {
-      if (width(state.start, later) - past > measure + SLACK) {
-        break;
-      }
-      forbidden.push(breaks[later] ?? 0);
-    }
-  }
-  return {
-    forbidden: forbidden.sort((a, b) => a - b),
-    hangs: hung.sort((a, b) => a.index - b.index),
-    ends: ends.sort((a, b) => a - b),
-    lines: best.lines,
-  };
-}
-
 /** What `settleRag` decides: the breaks to forbid, and the line ends that overhang. */
 export type RagPlan = { forbidden: number[]; hangs: Hang[] };
 
 const NO_CHANGE: RagPlan = { forbidden: [], hangs: [] };
+
+/**
+ * Layouts the plan cannot model: justified text, right to left, an indented
+ * first line, preserved newlines, or the browser's own hyphenation.
+ */
+function unsupported(style: CSSStyleDeclaration): boolean {
+  return (
+    style.textAlign === "justify" ||
+    style.direction === "rtl" ||
+    Number.parseFloat(style.textIndent) !== 0 ||
+    style.whiteSpace.startsWith("pre") ||
+    style.hyphens === "auto"
+  );
+}
 
 /**
  * Settles the rag of `element` the way a typesetter would: it finds the best
@@ -358,12 +203,15 @@ const NO_CHANGE: RagPlan = { forbidden: [], hangs: [] };
  * opportunities to forbid so the browser sets exactly those, and the line
  * ends that may go a little past the edge where that helps (`overshoot`).
  * Apply them with `applyRag`, in an element that wraps greedily (`text-wrap:
- * wrap`), drawing each overhang as a span around the line's last character
- * with a negative `letter-spacing` of the overhang.
+ * wrap`; `useRagPlan` sets that), drawing each overhang as a span around the
+ * line's last character with a negative `letter-spacing` of the overhang.
  *
  * It measures a hidden copy of the element with the same classes and width,
  * so the page never shows a trial, and checks the plan there: if the browser
- * would not break every line where planned, it returns no change.
+ * would not break every line where planned, it returns no change. It also
+ * returns no change for text it cannot model: justified, right to left, an
+ * indented first line, preserved newlines, or `hyphens: auto`. The text is
+ * measured as plain text in the element's own font.
  */
 export function settleRag(
   element: HTMLElement,
@@ -372,6 +220,10 @@ export function settleRag(
 ): RagPlan {
   const parent = element.parentElement;
   if (!parent || breakOpportunities(text).length === 0) {
+    return NO_CHANGE;
+  }
+  const own = getComputedStyle(element);
+  if (unsupported(own)) {
     return NO_CHANGE;
   }
   const copy = element.cloneNode(false) as HTMLElement;
@@ -383,7 +235,9 @@ export function settleRag(
     pointerEvents: "none",
     left: "0",
     top: "0",
-    width: `${element.getBoundingClientRect().width}px`,
+    // The used width, in the element's own box sizing, before any transform.
+    width: own.width === "auto" ? `${element.offsetWidth}px` : own.width,
+    boxSizing: own.boxSizing,
     maxWidth: "none",
     minWidth: "0",
     height: "auto",
@@ -399,16 +253,22 @@ export function settleRag(
       Number.parseFloat(style.paddingRight);
     const fontSize = Number.parseFloat(style.fontSize);
     const overshoot = overhangAllowance(options.overshoot ?? 0, fontSize);
-    const plan = bestBreaks(text, measureText(copy, text, measure, overshoot), options);
+    const key = `${fontKey(style)}|${text}`;
+    let known = measurements.get(element);
+    if (known?.key !== key) {
+      const measured = measureText(copy, text, measure, overshoot);
+      known = { key, x: measured.x, hyphen: measured.hyphen };
+      measurements.set(element, known);
+    }
+    const metrics: Metrics = { x: known.x, hyphen: known.hyphen, measure, overshoot };
+    const plan = bestBreaks(text, metrics, options);
     if (!plan) {
       return NO_CHANGE;
     }
     const planned = setsAsPlanned(
       copy,
       forbidBreaks(text, plan.forbidden, { keepLength: true }),
-      plan.hangs,
-      plan.ends,
-      plan.lines
+      plan
     );
     return planned ? { forbidden: plan.forbidden, hangs: plan.hangs } : NO_CHANGE;
   } finally {
