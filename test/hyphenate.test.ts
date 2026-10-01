@@ -621,3 +621,23 @@ describe("linked joints in heading mode", () => {
     expect(show(hyphenate("Hrafnafjarðarbyggð"))).toBe("Hrafna-fjarðar-byggð");
   });
 });
+
+describe("dictionary", () => {
+  test("your own words win over the patterns and the bundled list", () => {
+    expect(show(hyphenate("vefslóðin"))).not.toBe("vef-slóðin");
+    // The limits still apply: typographic keeps 3 letters after a break.
+    expect(show(hyphenate("vefslóðin", { dictionary: ["vef=slóð-in"] }))).toBe(
+      "vef-slóðin"
+    );
+    expect(show(hyphenate("veðurstofa", { dictionary: ["veð-ur-stofa"] }))).toBe(
+      "veður-stofa"
+    );
+  });
+
+  test("applies with exceptions: false too, and throws on a malformed line", () => {
+    expect(
+      show(hyphenate("vefslóðin", { dictionary: ["vef=slóð-in"], exceptions: false }))
+    ).toBe("vef-slóðin");
+    expect(() => hyphenate("orðabókin", { dictionary: ["Orð-a"] })).toThrow();
+  });
+});

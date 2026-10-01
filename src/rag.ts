@@ -118,6 +118,31 @@ export function applyRag(
   };
 }
 
+/** One piece of settled text: plain, or an overhanging line end (`hang` in px). */
+export type HangPiece = { start: number; text: string; hang?: number };
+
+/**
+ * Settled text cut where it is drawn differently: plain runs, and each
+ * overhanging character on its own (an emoji whole), to be wrapped in an
+ * element with `letter-spacing: -{hang}px`. Empty runs are left out.
+ */
+export function splitHangs(text: string, hangs: readonly Hang[]): HangPiece[] {
+  const pieces: HangPiece[] = [];
+  let from = 0;
+  for (const hang of hangs) {
+    const character = hangCharacter(text, hang.index);
+    if (hang.index > from) {
+      pieces.push({ start: from, text: text.slice(from, hang.index) });
+    }
+    pieces.push({ start: hang.index, text: character, hang: hang.width });
+    from = hang.index + character.length;
+  }
+  if (from < text.length || pieces.length === 0) {
+    pieces.push({ start: from, text: text.slice(from) });
+  }
+  return pieces;
+}
+
 /** U+2060 WORD JOINER: zero width, no break. Stands in for a forbidden soft hyphen in a trial. */
 const WORD_JOINER = "⁠";
 
@@ -222,10 +247,10 @@ export type RagOptions = {
    * character. 0 turns the cheat off. A line uses it only when it would not
    * fit otherwise and the whole paragraph is better for it.
    */
-  overshoot?: number;
+  overhang?: number;
 };
 
-export const DEFAULT_RAG_OPTIONS: Required<RagOptions> = {
+export const DEFAULT_RAG_OPTIONS: Readonly<Required<RagOptions>> = Object.freeze({
   balance: false,
   runtWeight: 0.25,
   lastHyphenWeight: 0.25,
@@ -236,8 +261,8 @@ export const DEFAULT_RAG_OPTIONS: Required<RagOptions> = {
   shortPieceWeight: 0.25,
   shortPiece: 3,
   ladderWeight: 0.02,
-  overshoot: 0,
-};
+  overhang: 0,
+});
 
 /** The options that are numbers: the weights and sizes. */
 type Weight = Exclude<keyof RagOptions, "balance">;
@@ -347,7 +372,7 @@ export type Metrics = {
   x: Float64Array;
   hyphen: number;
   measure: number;
-  overshoot: number;
+  overhang: number;
 };
 
 /**
@@ -499,7 +524,7 @@ export function bestBreaks(
   metrics: Metrics,
   options: RagOptions = {}
 ): BreakPlan | null {
-  const { x, hyphen, measure, overshoot } = metrics;
+  const { x, hyphen, measure, overhang } = metrics;
   const shortWords = new Set(shortWordSpaces(text));
   // The paragraph's start, every opportunity, its end.
   const breaks: Opportunity[] = [
@@ -531,9 +556,9 @@ export function bestBreaks(
     // advance. Not at a soft hyphen: the browser draws the hyphen after the
     // last letter, and pulling the letter back would make them overlap.
     allowed[k] =
-      overshoot <= 0 || hyphenHere
+      overhang <= 0 || hyphenHere
         ? 0
-        : Math.min(overshoot, (x[end] ?? 0) - (x[lastCharacterStart(text, end)] ?? 0));
+        : Math.min(overhang, (x[end] ?? 0) - (x[lastCharacterStart(text, end)] ?? 0));
     endings.push({
       hangingShortWord: shortWords.has(index),
       hyphen: hyphenHere ? pieces(text, index) : undefined,
@@ -553,7 +578,7 @@ export function bestBreaks(
   const fits = (from: number, to: number) => set(from, to) <= measure - SLACK;
   // Past this, no line ending here can fit, even overhanging.
   const beyond = (from: number, to: number) =>
-    width(from, to) - overshoot > measure - SLACK;
+    width(from, to) - overhang > measure - SLACK;
   const line = (from: number, to: number): MeasuredLine => {
     const ending = endings[to];
     return {

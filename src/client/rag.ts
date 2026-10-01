@@ -1,21 +1,15 @@
 import {
+  applyRag,
   type BreakPlan,
   bestBreaks,
   breakOpportunities,
   forbidBreaks,
   type Hang,
-  hangCharacter,
   type Metrics,
   type RagOptions,
+  splitHangs,
 } from "../rag";
 
-/**
- * Sets the text on one line in the hidden copy (`nowrap`) and reads where
- * every character starts, so the width of any stretch of it is a
- * subtraction. A soft hyphen draws nothing, so it takes the next
- * character's position. Also reads the width of the hyphen the browser
- * draws at a break.
- */
 type Measured = { key: string; x: Float64Array; hyphen: number };
 
 /**
@@ -44,11 +38,18 @@ export function forgetMeasurements(element: HTMLElement): void {
   measurements.delete(element);
 }
 
+/**
+ * Sets the text on one line in the hidden copy (`nowrap`) and reads where
+ * every character starts, so the width of any stretch of it is a
+ * subtraction. A soft hyphen draws nothing, so it takes the next
+ * character's position. Also reads the width of the hyphen the browser
+ * draws at a break.
+ */
 function measureText(
   copy: HTMLElement,
   text: string,
   measure: number,
-  overshoot: number
+  overhang: number
 ): Metrics {
   copy.style.whiteSpace = "nowrap";
   copy.textContent = text;
@@ -71,21 +72,21 @@ function measureText(
   range.selectNodeContents(copy);
   const hyphen = range.getBoundingClientRect().width;
   copy.style.whiteSpace = "";
-  return { x, hyphen, measure, overshoot };
+  return { x, hyphen, measure, overhang };
 }
 
 /**
  * How far a line may go past the edge, in px, for text of `fontSize` px.
- * `overshoot` is the allowance in em at 16px text, about one letter at 0.5.
+ * `overhang` is the allowance in em at 16px text, about one letter at 0.5.
  * It shrinks as a share of the type as the type grows (by the square root of
  * the size), so a title cheats less than body text, down to 0.15 em, and
- * never more than `overshoot` itself.
+ * never more than `overhang` itself.
  */
-export function overhangAllowance(overshoot: number, fontSize: number): number {
-  if (overshoot <= 0 || fontSize <= 0) {
+export function overhangAllowance(overhang: number, fontSize: number): number {
+  if (overhang <= 0 || fontSize <= 0) {
     return 0;
   }
-  const em = Math.min(overshoot, Math.max(0.15, overshoot * Math.sqrt(16 / fontSize)));
+  const em = Math.min(overhang, Math.max(0.15, overhang * Math.sqrt(16 / fontSize)));
   return em * fontSize;
 }
 
@@ -104,28 +105,18 @@ function fill(
   hangs: readonly Hang[]
 ): { node: Text; start: number }[] {
   element.textContent = "";
-  const nodes: { node: Text; start: number }[] = [];
-  const add = (part: string, start: number, overhang?: number) => {
-    const node = document.createTextNode(part);
-    if (overhang === undefined) {
+  return splitHangs(text, hangs).map(piece => {
+    const node = document.createTextNode(piece.text);
+    if (piece.hang === undefined) {
       element.append(node);
     } else {
       const span = document.createElement("span");
-      span.style.letterSpacing = `${-overhang}px`;
+      span.style.letterSpacing = `${-piece.hang}px`;
       span.append(node);
       element.append(span);
     }
-    nodes.push({ node, start });
-  };
-  let from = 0;
-  for (const hang of hangs) {
-    const character = hangCharacter(text, hang.index);
-    add(text.slice(from, hang.index), from);
-    add(character, hang.index, hang.width);
-    from = hang.index + character.length;
-  }
-  add(text.slice(from), from);
-  return nodes;
+    return { node, start: piece.start };
+  });
 }
 
 /**
@@ -181,7 +172,8 @@ function setsAsPlanned(
 /** What `settleRag` decides: the breaks to forbid, and the line ends that overhang. */
 export type RagPlan = { forbidden: number[]; hangs: Hang[] };
 
-const NO_CHANGE: RagPlan = { forbidden: [], hangs: [] };
+/** A plan that changes nothing. */
+export const NO_CHANGE: RagPlan = Object.freeze({ forbidden: [], hangs: [] }) as RagPlan;
 
 /**
  * Layouts the plan cannot model: justified text, right to left, an indented
@@ -201,7 +193,7 @@ function unsupported(style: CSSStyleDeclaration): boolean {
  * Settles the rag of `element` the way a typesetter would: it finds the best
  * line breaks for the whole paragraph (`bestBreaks`) and returns the break
  * opportunities to forbid so the browser sets exactly those, and the line
- * ends that may go a little past the edge where that helps (`overshoot`).
+ * ends that may go a little past the edge where that helps (`overhang`).
  * Apply them with `applyRag`, in an element that wraps greedily (`text-wrap:
  * wrap`; `useRagPlan` sets that), drawing each overhang as a span around the
  * line's last character with a negative `letter-spacing` of the overhang.
@@ -252,15 +244,15 @@ export function settleRag(
       Number.parseFloat(style.paddingLeft) -
       Number.parseFloat(style.paddingRight);
     const fontSize = Number.parseFloat(style.fontSize);
-    const overshoot = overhangAllowance(options.overshoot ?? 0, fontSize);
+    const overhang = overhangAllowance(options.overhang ?? 0, fontSize);
     const key = `${fontKey(style)}|${text}`;
     let known = measurements.get(element);
     if (known?.key !== key) {
-      const measured = measureText(copy, text, measure, overshoot);
+      const measured = measureText(copy, text, measure, overhang);
       known = { key, x: measured.x, hyphen: measured.hyphen };
       measurements.set(element, known);
     }
-    const metrics: Metrics = { x: known.x, hyphen: known.hyphen, measure, overshoot };
+    const metrics: Metrics = { x: known.x, hyphen: known.hyphen, measure, overhang };
     const plan = bestBreaks(text, metrics, options);
     if (!plan) {
       return NO_CHANGE;
@@ -274,4 +266,86 @@ export function settleRag(
   } finally {
     copy.remove();
   }
+}
+
+/** What makes a judgement: the first one, a new width, or a font that finished loading. */
+export type RagCause = "first" | "resize" | "font";
+
+/**
+ * Watches `element` and judges its rag (`settleRag`) for `text`: once now,
+ * again whenever its width changes, and whenever fonts finish loading, since
+ * all of them move the line breaks. `onPlan` gets every plan with what caused
+ * it; the first call happens before `watchRag` returns. While watched, the
+ * element wraps greedily (`text-wrap: wrap`), which the plan relies on.
+ * Returns a function that stops watching and puts `text-wrap` back.
+ */
+export function watchRag(
+  element: HTMLElement,
+  text: string,
+  options: RagOptions,
+  onPlan: (plan: RagPlan, cause: RagCause) => void
+): () => void {
+  const wrapBefore = element.style.getPropertyValue("text-wrap");
+  element.style.setProperty("text-wrap", "wrap");
+  let lastWidth = -1;
+  const judge = (cause: RagCause) => {
+    // The layout width, which a transform such as a scale-in does not change.
+    // Forbidding a break changes the height, not the width, so the same width
+    // is not judged twice.
+    const width = element.offsetWidth;
+    if (width === lastWidth) {
+      return;
+    }
+    lastWidth = width;
+    onPlan(settleRag(element, text, options), cause);
+  };
+
+  judge("first");
+  const observer = new ResizeObserver(() => judge("resize"));
+  observer.observe(element);
+  // Fonts that are still loading move the breaks once they arrive, and so
+  // does a face first used later (an italic, a heavier weight).
+  const fonts = document.fonts;
+  const onFonts = () => {
+    forgetMeasurements(element);
+    lastWidth = -1;
+    judge("font");
+  };
+  fonts?.addEventListener("loadingdone", onFonts);
+  let alive = true;
+  if (fonts && fonts.status !== "loaded") {
+    fonts.ready.then(() => alive && onFonts());
+  }
+  return () => {
+    alive = false;
+    observer.disconnect();
+    fonts?.removeEventListener("loadingdone", onFonts);
+    element.style.setProperty("text-wrap", wrapBefore);
+  };
+}
+
+/**
+ * Settles the rag of a plain DOM element, for pages without React: puts
+ * `text` in `element` with the breaks a typesetter would choose and its
+ * overhangs drawn, and keeps it settled as the width and fonts change.
+ * `text` is the element's text, hyphenated with soft hyphens. Returns a
+ * function that stops and puts `text` back as it was.
+ *
+ * ```js
+ * const stop = settle(document.querySelector("p"), hyphenate(text), { overhang: 0.5 });
+ * ```
+ */
+export function settle(
+  element: HTMLElement,
+  text: string,
+  options: RagOptions = {}
+): () => void {
+  const stop = watchRag(element, text, options, plan => {
+    const settled = applyRag(text, plan.forbidden, plan.hangs);
+    fill(element, settled.text, settled.hangs);
+  });
+  return () => {
+    stop();
+    element.textContent = text;
+  };
 }

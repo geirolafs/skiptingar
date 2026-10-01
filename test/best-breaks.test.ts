@@ -6,17 +6,18 @@ import {
   hangCharacter,
   lastCharacterStart,
   type Metrics,
+  splitHangs,
 } from "../src/rag";
 
 const SHY = "­";
 
 /** Every character 10px wide, a soft hyphen 0 (it draws nothing until a break). */
-function monospace(text: string, measure: number, overshoot = 0): Metrics {
+function monospace(text: string, measure: number, overhang = 0): Metrics {
   const x = new Float64Array(text.length + 1);
   for (let index = 0; index < text.length; index += 1) {
     x[index + 1] = (x[index] ?? 0) + (text[index] === SHY ? 0 : 10);
   }
-  return { x, hyphen: 10, measure, overshoot };
+  return { x, hyphen: 10, measure, overhang };
 }
 
 const DASHES = new Set(["-", "–", "—"]);
@@ -170,3 +171,20 @@ describe("balance (titles)", () => {
 function plan2(plan: { lines: number } | null): number {
   return plan?.lines ?? 0;
 }
+
+describe("splitHangs", () => {
+  test("cuts the text around each overhanging character, an emoji whole", () => {
+    expect(
+      splitHangs("abc def 😀", [
+        { index: 2, width: 3 },
+        { index: 8, width: 4 },
+      ])
+    ).toEqual([
+      { start: 0, text: "ab" },
+      { start: 2, text: "c", hang: 3 },
+      { start: 3, text: " def " },
+      { start: 8, text: "😀", hang: 4 },
+    ]);
+    expect(splitHangs("abc", [])).toEqual([{ start: 0, text: "abc" }]);
+  });
+});

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { overhangAllowance } from "../src/client/rag";
 import {
   applyRag,
   breakOpportunities,
@@ -6,8 +7,7 @@ import {
   isShortWord,
   ragCost,
   shortWordSpaces,
-} from "../src";
-import { overhangAllowance } from "../src/client/rag";
+} from "../src/rag";
 
 const NBSP = " ";
 const SHY = "­";

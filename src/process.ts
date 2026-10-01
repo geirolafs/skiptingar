@@ -1,4 +1,4 @@
-import { SOFT_HYPHEN } from "./characters";
+import { SOFT_HYPHEN, SOFT_HYPHENS, WHITESPACE_RUNS } from "./characters";
 import type { HyphenateOptions } from "./hyphenate";
 import { breakOffsets } from "./hyphenate";
 import type { TypesetOptions } from "./typeset";
@@ -10,9 +10,6 @@ export type ProcessOptions = {
   /** Typeset options. Omit or `false` to skip typesetting. */
   typeset?: TypesetOptions | false;
 };
-
-const SOFT_HYPHENS = new RegExp(SOFT_HYPHEN, "g");
-const WHITESPACE_RUNS = /(\s+)/;
 
 /** `true` means the default rules, `false` means off. */
 export function resolveTypeset(

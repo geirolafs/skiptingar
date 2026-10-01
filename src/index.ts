@@ -1,4 +1,7 @@
 export { NO_BREAK_SPACE, NON_BREAKING_HYPHEN, SOFT_HYPHEN } from "./characters";
+/** Where each slot's winning pattern digit is, for drawing how a word is broken. */
+export { patternPoints } from "./engine";
+export { type ExceptionEntry, parseExceptions } from "./exceptions";
 export { EXCEPTION_COUNT, PATTERN_COUNT } from "./generated/data";
 export type { HyphenateOptions } from "./hyphenate";
 export {
@@ -11,17 +14,13 @@ export {
 } from "./hyphenate";
 export type { ProcessOptions } from "./process";
 export { processSegments, resolveTypeset } from "./process";
-export type { Hang, MeasuredLine, RagOptions } from "./rag";
+export type { BreakPlan, Hang, HangPiece, Metrics, RagOptions } from "./rag";
 export {
   applyRag,
-  breakOpportunities,
+  bestBreaks,
   DEFAULT_RAG_OPTIONS,
-  forbidBreaks,
-  isShortWord,
-  lineCost,
-  ragCost,
   SHORT_WORDS,
-  shortWordSpaces,
+  splitHangs,
 } from "./rag";
 export type { TypesetOptions } from "./typeset";
 export {

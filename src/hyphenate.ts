@@ -1,4 +1,4 @@
-import { SOFT_HYPHEN } from "./characters";
+import { SOFT_HYPHEN, SOFT_HYPHENS, WHITESPACE_RUNS } from "./characters";
 import { patternBreaks } from "./engine";
 import { lookupException } from "./exceptions";
 import { DATA_LEFT_MIN, DATA_RIGHT_MIN } from "./generated/data";
@@ -22,6 +22,13 @@ export type HyphenateOptions = {
    * `false` gives raw pattern output. Default true.
    */
   exceptions?: boolean;
+  /**
+   * Your own words, in the exception list's format: one word a line,
+   * lowercase, `-` for a break and `=` for a compound joint
+   * (`"forn=aldar=frægð"`). They win over the bundled list and the patterns,
+   * also with `exceptions: false`. A malformed line throws.
+   */
+  dictionary?: readonly string[];
   /**
    * Leave all-caps words of `ACRONYM_LENGTH.min` to `ACRONYM_LENGTH.max`
    * letters alone, so `UNESCO` and `NATO` never break. Longer all-caps words
@@ -163,8 +170,6 @@ const PRESETS = {
   },
 } as const satisfies Record<string, Record<string, Limits>>;
 
-const SOFT_HYPHENS = new RegExp(SOFT_HYPHEN, "g");
-const WHITESPACE_RUNS = /(\s+)/;
 const LETTER_RUNS = /\p{L}+/gu;
 // Tokens with `@`, `_` or `#`, a letter glued to a digit (`mp3`, `abc2026`) or
 // a slash that is not the Icelandic `orð-/orð` shorthand are skipped whole:
@@ -230,7 +235,10 @@ function wordCandidates(
 
   const lower = lowerKeepingLength(chars);
   const useLists = options.exceptions !== false;
-  const entry = useLists ? lookupException(lower) : undefined;
+  const entry = lookupException(lower, {
+    dictionary: options.dictionary,
+    bundled: useLists,
+  });
   const fits = (position: number) => position >= leftMin && length - position >= rightMin;
   const typographic = (options.rules ?? "typographic") === "typographic";
   if (entry) {

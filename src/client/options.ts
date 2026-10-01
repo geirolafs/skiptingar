@@ -29,7 +29,7 @@ function sortKeys(value: unknown): unknown {
  * objects too) and object identity. React can use it as a dependency, so an
  * inline options object does not cause new work on every render.
  */
-export function optionsKey(options: UseHyphenateOptions | undefined): string {
+export function optionsKey(options: object | undefined): string {
   return JSON.stringify(sortKeys(options ?? {}));
 }
 
