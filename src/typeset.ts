@@ -1,14 +1,15 @@
 /**
  * Icelandic typographic fixes that only swap one character for another, so
- * the text length never changes:
+ * the length of the text never changes:
  *   space -> no-break space (U+00A0), quote -> quote, hyphen -> en dash.
  * That is what lets `typesetSegments` join the segments, apply the rules
  * across their borders and cut the result back at the original offsets.
  *
- * Because the length never changes, typeset does not normalise. Pass NFC text
- * (`text.normalize("NFC")`). `hyphenate()` and the React components do this
- * for you.
+ * Typeset normalises each segment to NFC first, so a decomposed "á"
+ * (a + U+0301) is read as one letter. The segments it returns keep the NFC
+ * length.
  */
+import { NO_BREAK_SPACE, NON_BREAKING_HYPHEN } from "./characters";
 import { findProtectedMask, isProtected, type Mask } from "./url";
 
 export type TypesetOptions = {
@@ -125,10 +126,7 @@ const MONTHS = [
 
 const TITLES = ["dr", "sr", "próf", "hr"];
 
-const NON_BREAKING_HYPHEN = "\u2011";
-const NBSP = " ";
-
-// `[  ]` is used wherever a rule reads a space, so a second run sees the
+// `[ \u00A0]` is used wherever a rule reads a space, so a second run sees the
 // no-break spaces from the first run and produces the same result.
 const SP = "[ \\u00A0]";
 
@@ -186,13 +184,23 @@ const LAST_WORDS = new RegExp(
 // run sees its own output. The number must stand alone: not inside a longer
 // digit run, not a decimal, not part of "1990-2000" (4 digits on the left).
 const PHONE_SEPARATOR = "[ \\u00A0\\u2011-]";
+/** Digits on each side of the separator: kennitala (6 and 4), phone number (3 and 4). */
+const PHONE_SHAPES = [
+  [6, 4],
+  [3, 4],
+] as const;
+const PHONE_SHAPE_ALTERNATION = PHONE_SHAPES.map(
+  ([left, right]) => `\\d{${left}}${PHONE_SEPARATOR}\\d{${right}}`
+).join("|");
 // The characters just outside the number must not be a letter or a digit of any
 // script (\p{Nd}), so "a555-1234b" and fullwidth digits are left alone.
 const STANDALONE_NUMBER = new RegExp(
-  `(?<![\\p{L}\\p{Nd}.,+\\u2011-])(?<!\\p{Nd}[ \\u00A0\\u2011-])(?:\\+354${SP}\\d{3}${PHONE_SEPARATOR}?\\d{4}|\\d{6}${PHONE_SEPARATOR}\\d{4}|\\d{3}${PHONE_SEPARATOR}\\d{4})(?![\\p{L}\\p{Nd}])(?!${PHONE_SEPARATOR}?\\p{Nd}|[.,]\\p{Nd})`,
+  `(?<![\\p{L}\\p{Nd}.,+\\u2011-])(?<!\\p{Nd}[ \\u00A0\\u2011-])(?:\\+354${SP}\\d{3}${PHONE_SEPARATOR}?\\d{4}|${PHONE_SHAPE_ALTERNATION})(?![\\p{L}\\p{Nd}])(?!${PHONE_SEPARATOR}?\\p{Nd}|[.,]\\p{Nd})`,
   "gu"
 );
-const YEAR_RANGE = /(?<![\d-])(\d+)-(\d+)(?![\d-])/gu;
+// A range stands alone: no letter, digit or hyphen touches it, so "AB12-34CD",
+// "A4-2024" and "F-35" are not ranges.
+const YEAR_RANGE = /(?<![\p{L}\p{N}-])(\d+)-(\d+)(?![\p{L}\p{N}-])/gu;
 const SPACED_HYPHEN = new RegExp(`(?<=\\p{L}${SP})-(?=${SP}\\p{L})`, "gu");
 
 const OPENING_CONTEXT = /[\s([{—–\-„‚]/u;
@@ -221,7 +229,9 @@ function replaceMatches(
 }
 
 function bindSpaces(text: string, pattern: RegExp, mask: Mask): string {
-  return replaceMatches(text, pattern, mask, match => match.replace(/ /g, NBSP));
+  return replaceMatches(text, pattern, mask, match =>
+    match.replace(/ /g, NO_BREAK_SPACE)
+  );
 }
 
 function isApostrophe(text: string, index: number): boolean {
@@ -343,12 +353,22 @@ function applyQuotes(text: string, mask: Mask): string {
   return chars.join("");
 }
 
+/**
+ * Whether `a-b` is a range. Phone numbers (555-1234) and kennitala
+ * (010190-2939) keep their hyphen. So does a part number such as ISO 8601-1:
+ * a four-digit number with a one-digit part.
+ */
+function isRange(a: string, b: string): boolean {
+  const isPhone = PHONE_SHAPES.some(
+    ([left, right]) => a.length === left && b.length === right
+  );
+  return !(isPhone || (a.length === 4 && b.length === 1));
+}
+
 function applyDashes(text: string, mask: Mask): string {
-  // Phone numbers (555-1234) and kennitala (010101-2939) keep their hyphen.
-  const withRanges = replaceMatches(text, YEAR_RANGE, mask, (match, [a = "", b = ""]) => {
-    const isPhone = (a.length === 3 || a.length === 6) && b.length === 4;
-    return isPhone ? match : match.replace("-", "–");
-  });
+  const withRanges = replaceMatches(text, YEAR_RANGE, mask, (match, [a = "", b = ""]) =>
+    isRange(a, b) ? match.replace("-", "–") : match
+  );
   return replaceMatches(withRanges, SPACED_HYPHEN, mask, () => "–");
 }
 
@@ -384,7 +404,7 @@ function typesetText(text: string, options: ResolvedOptions): string {
   }
   if (options.numbers) {
     out = replaceMatches(out, STANDALONE_NUMBER, mask, match =>
-      match.replace(/ /g, NBSP).replace(/-/g, NON_BREAKING_HYPHEN)
+      match.replace(/ /g, NO_BREAK_SPACE).replace(/-/g, NON_BREAKING_HYPHEN)
     );
   }
   if (options.singleLetter) {
@@ -402,20 +422,22 @@ function typesetText(text: string, options: ResolvedOptions): string {
 /**
  * Typesets adjacent text segments (for example the text nodes of a JSX tree
  * split by inline elements). Rules see the joined text, so they work across
- * segment borders. Returns the same number of segments.
+ * segment borders. Each segment is normalised to NFC first. Returns the same
+ * number of segments, each with its NFC length.
  */
 export function typesetSegments(
   segments: readonly string[],
   options: TypesetOptions = {}
 ): string[] {
-  const joined = segments.join("");
+  const normalised = segments.map(segment => segment.normalize("NFC"));
+  const joined = normalised.join("");
   const result = typesetText(joined, resolveOptions(options));
   if (result.length !== joined.length) {
     throw new Error("typeset changed the text length, which segments cannot map back");
   }
 
   let offset = 0;
-  return segments.map(segment => {
+  return normalised.map(segment => {
     const part = result.slice(offset, offset + segment.length);
     offset += segment.length;
     return part;

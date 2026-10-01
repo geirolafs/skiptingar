@@ -2,7 +2,7 @@ import { describe, expect, spyOn, test } from "bun:test";
 import type { ReactElement, ReactNode } from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { hyphenate } from "../src";
+import { hyphenate, processSegments } from "../src";
 import { Hyphenate, Typeset, transformChildren } from "../src/react";
 
 const SHY = "­";
@@ -472,18 +472,45 @@ describe("lang", () => {
     expect(html).not.toContain(`inter${SHY}`);
   });
 
-  test("a component with a lang prop is skipped too", () => {
-    function Quote({ children }: { children?: ReactNode; lang?: string }) {
-      return <q>{children}</q>;
+  test("the lang prop of a component is its own, not a language", () => {
+    function Code({ children }: { children?: ReactNode; lang?: string }) {
+      return <b>{children}</b>;
     }
     const tree = (
-      <Quote lang="en">
-        <b>{LONG}</b>
-      </Quote>
+      <Code lang="typescript">
+        <i>{LONG}</i>
+      </Code>
     );
     expect(render(transformChildren(tree, { hyphenate: {} }))).toBe(
-      `<q><b>${LONG}</b></q>`
+      `<b><i>${hyphenate(LONG)}</i></b>`
     );
+  });
+
+  test("a component with a lang prop does not end the run", () => {
+    function Code({ children }: { children?: ReactNode; lang?: string }) {
+      return <b>{children}</b>;
+    }
+    const html = render(
+      <Hyphenate>
+        <p>
+          Hraðbrautar<Code lang="typescript">framkvæmdir</Code>
+        </p>
+      </Hyphenate>
+    );
+    expect(html.replace(/<\/?b>/g, "")).toBe(`<p>${hyphenate(LONG)}</p>`);
+  });
+
+  test("the translate prop of a component is not read, but data-skiptingar=off is", () => {
+    function Wrap({ children }: { children?: ReactNode; translate?: string }) {
+      return <b>{children}</b>;
+    }
+    const html = render(
+      <Hyphenate>
+        <Wrap translate="no">{LONG}</Wrap>
+        <Wrap {...{ "data-skiptingar": "off" }}>{LONG}</Wrap>
+      </Hyphenate>
+    );
+    expect(html).toBe(`<b>${hyphenate(LONG)}</b><b>${LONG}</b>`);
   });
 
   test("English quotes in a lang=en span are not converted", () => {
@@ -669,5 +696,81 @@ describe("Unicode normalisation", () => {
   test("<Typeset> normalises to NFC as well", () => {
     const html = render(<Typeset>{"Sjá nr. 5 á ástríða".normalize("NFD")}</Typeset>);
     expect(html).toBe(`Sjá nr.${NB}5 á ástríða`.normalize("NFC"));
+  });
+});
+
+describe("words split by inline markup", () => {
+  /** The html without the <em> and <span> tags. */
+  const withoutTags = (html: string) => html.replace(/<\/?(?:em|span)>/g, "");
+
+  test("a split word is hyphenated like the unsplit word, cut at the border", () => {
+    const html = render(
+      <Hyphenate>
+        <p>
+          Hraðbrautar<em>framkvæmdir</em>
+        </p>
+      </Hyphenate>
+    );
+    expect(withoutTags(html)).toBe(`<p>${hyphenate(LONG)}</p>`);
+    // The break on the border goes at the end of the earlier segment.
+    expect(html).toContain(`ar${SHY}<em>fram${SHY}`);
+  });
+
+  test("a digit in one piece protects the whole token, as in the plain string", () => {
+    const html = render(
+      <Hyphenate>
+        <p>
+          12<span>hestarnir</span>
+        </p>
+      </Hyphenate>
+    );
+    expect(html).toBe("<p>12<span>hestarnir</span></p>");
+    expect(hyphenate("12hestarnir")).toBe("12hestarnir");
+  });
+
+  test("a valid break on the border is kept", () => {
+    const html = render(
+      <Hyphenate rules="ritreglur">
+        <p>
+          hest<span>arnir</span>
+        </p>
+      </Hyphenate>
+    );
+    expect(hyphenate("hestarnir", { rules: "ritreglur" })).toBe(`hest${SHY}arn${SHY}ir`);
+    expect(html).toBe(`<p>hest${SHY}<span>arn${SHY}ir</span></p>`);
+  });
+
+  test("a domain split by an element is still left alone", () => {
+    const html = render(
+      <Hyphenate>
+        <p>
+          <em>orð</em>.is
+        </p>
+      </Hyphenate>
+    );
+    expect(html).toBe("<p><em>orð</em>.is</p>");
+  });
+});
+
+describe("processSegments", () => {
+  test("returns one segment for each input and cuts a border break to the earlier one", () => {
+    const out = processSegments(["hest", "arnir"], {
+      hyphenate: { rules: "ritreglur" },
+    });
+    expect(out).toEqual([`hest${SHY}`, `arn${SHY}ir`]);
+  });
+
+  test("normalises, removes soft hyphens, and uses a custom hyphen character", () => {
+    const out = processSegments([`Hrað${SHY}braut`.normalize("NFD"), "ar"], {
+      hyphenate: { hyphenChar: "|", rules: "ritreglur" },
+    });
+    expect(out.join("")).toBe(
+      hyphenate("Hraðbrautar", { rules: "ritreglur", hyphenChar: "|" })
+    );
+    expect(out).toHaveLength(2);
+  });
+
+  test("does nothing but normalise when both options are off", () => {
+    expect(processSegments(["á".normalize("NFD"), "b"], {})).toEqual(["á", "b"]);
   });
 });

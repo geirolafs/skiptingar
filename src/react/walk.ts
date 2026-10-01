@@ -35,7 +35,6 @@ export const INLINE_TAGS: ReadonlySet<string> = new Set([
   "bdo",
   "big",
   "cite",
-  "code",
   "data",
   "del",
   "dfn",
@@ -43,7 +42,6 @@ export const INLINE_TAGS: ReadonlySet<string> = new Set([
   "i",
   "img",
   "ins",
-  "kbd",
   "label",
   "mark",
   "output",
@@ -52,7 +50,6 @@ export const INLINE_TAGS: ReadonlySet<string> = new Set([
   "rt",
   "ruby",
   "s",
-  "samp",
   "small",
   "span",
   "strong",
@@ -60,7 +57,6 @@ export const INLINE_TAGS: ReadonlySet<string> = new Set([
   "sup",
   "time",
   "u",
-  "var",
   "wbr",
 ]);
 
@@ -77,15 +73,20 @@ export function isIcelandic(lang: string): boolean {
 }
 
 /**
- * Whether text under `element` is in a foreign language. An element with a
- * `lang` prop sets it: Icelandic turns processing on, anything else turns it
+ * Whether text under `element` is in a foreign language. A host element with
+ * a `lang` prop sets it: Icelandic turns processing on, anything else turns it
  * off. An empty `lang=""` means unknown language in HTML, so it turns
  * processing off too. An element without `lang` keeps what its parent had, so
  * a `lang="is"` inside a `lang="en"` subtree is processed again.
+ *
+ * A component's `lang` prop is not read: it is the component's own prop, and
+ * what it renders is not known here. Only host elements set the language.
  */
 function isForeignIn(element: ReactElement<ElementProps>, inherited: boolean): boolean {
   const { lang } = element.props;
-  return typeof lang === "string" ? !isIcelandic(lang) : inherited;
+  return typeof element.type === "string" && typeof lang === "string"
+    ? !isIcelandic(lang)
+    : inherited;
 }
 
 /**
@@ -100,12 +101,16 @@ function descendInto(element: ReactElement<ElementProps>): ReactNode | undefined
   return isSkipped(element) ? undefined : (element.props.children ?? undefined);
 }
 
-/** An opted-out subtree: a skipped tag, `translate="no"` or `data-skiptingar="off"`. */
+/**
+ * An opted-out subtree: a skipped tag, `translate="no"` or
+ * `data-skiptingar="off"`. Only `data-skiptingar` is read on components, since
+ * `translate` is an HTML attribute and a component's prop of that name is its own.
+ */
 function isSkipped(element: ReactElement<ElementProps>): boolean {
   const { props, type } = element;
+  const isHost = typeof type === "string";
   return (
-    (typeof type === "string" && SKIPPED_TAGS.has(type)) ||
-    props.translate === "no" ||
+    (isHost && (SKIPPED_TAGS.has(type) || props.translate === "no")) ||
     props["data-skiptingar"] === "off"
   );
 }
@@ -124,76 +129,69 @@ function endRun(runs: Runs): void {
   }
 }
 
-/**
- * Appends every text segment under `node` to `runs`, in document order. A
- * block host element ends the run before and after it, and so does a skipped
- * subtree. Components are transparent: their children join the current run.
- *
- * Text in a foreign language is not collected. Where the language changes,
- * the run ends, so Icelandic rules never work across English text.
- */
-function collectText(node: ReactNode, runs: Runs, foreign: boolean): void {
-  if (typeof node === "string") {
-    if (!foreign) {
-      runs.current.push(node);
-    }
-  } else if (typeof node === "number") {
-    if (!foreign) {
-      runs.current.push(String(node));
-    }
-  } else if (isChildArray(node)) {
-    for (const child of node) {
-      collectText(child, runs, foreign);
-    }
-  } else if (isValidElement<ElementProps>(node)) {
-    const foreignHere = isForeignIn(node, foreign);
-    // A skipped subtree ends the run even when it is an inline tag, so text on
-    // both sides is not read as one piece: `555<code>x</code> 1234`.
-    const isBoundary =
-      foreignHere !== foreign ||
-      isSkipped(node) ||
-      (typeof node.type === "string" && !INLINE_TAGS.has(node.type));
-    if (isBoundary) {
-      endRun(runs);
-    }
-    const children = descendInto(node);
-    if (children !== undefined) {
-      collectText(children, runs, foreignHere);
-    }
-    if (isBoundary) {
-      endRun(runs);
-    }
-  }
-}
+/** What a pass over the tree does at each point of the walk. */
+type Visitor = {
+  /** A text segment outside a foreign subtree. Returns the text to keep. */
+  text: (value: string) => string;
+  /** A run ends here. */
+  boundary: () => void;
+  /** An element whose children were walked. Returns the element to keep. */
+  element: (
+    element: ReactElement<ElementProps>,
+    children: ReactNode
+  ) => ReactElement<ElementProps>;
+};
 
 /**
- * Rebuilds `node`, replacing each text segment with `next()`. Visits segments
- * in the same order as `collectText`. Untouched elements are returned as the
- * same object. Changed elements are cloned, which keeps key, ref and props.
+ * Walks `node` in document order and calls the visitor. Returns the rebuilt
+ * node. Text goes through `visitor.text`, and an element whose children were
+ * walked goes through `visitor.element`. An element that is not walked into
+ * (a skipped subtree, or no children) is returned as the same object.
+ *
+ * A block host element ends the run before and after it, and so does a
+ * skipped subtree. Components are transparent: their children join the
+ * current run. Text in a foreign language is not given to the visitor, and
+ * where the language changes the run ends, so Icelandic rules never work
+ * across English text.
  */
-function replaceText(node: ReactNode, next: () => string, foreign: boolean): ReactNode {
+function walk(node: ReactNode, foreign: boolean, visitor: Visitor): ReactNode {
   if (typeof node === "string") {
-    return foreign ? node : next();
+    return foreign ? node : visitor.text(node);
   }
   if (typeof node === "number") {
     if (foreign) {
       return node;
     }
     const before = String(node);
-    const after = next();
+    const after = visitor.text(before);
     return after === before ? node : after;
   }
   if (isChildArray(node)) {
-    return node.map(child => replaceText(child, next, foreign));
+    return node.map(child => walk(child, foreign, visitor));
   }
   if (!isValidElement<ElementProps>(node)) {
     return node;
   }
-  const children = descendInto(node);
-  if (children === undefined) {
-    return node;
+
+  const foreignHere = isForeignIn(node, foreign);
+  // A skipped subtree ends the run even when it is an inline tag, so text on
+  // both sides is not read as one piece: `555<code>x</code> 1234`.
+  const isBoundary =
+    foreignHere !== foreign ||
+    isSkipped(node) ||
+    (typeof node.type === "string" && !INLINE_TAGS.has(node.type));
+  if (isBoundary) {
+    visitor.boundary();
   }
-  return withChildren(node, replaceText(children, next, isForeignIn(node, foreign)));
+  const children = descendInto(node);
+  const result =
+    children === undefined
+      ? node
+      : visitor.element(node, walk(children, foreignHere, visitor));
+  if (isBoundary) {
+    visitor.boundary();
+  }
+  return result;
 }
 
 /**
@@ -246,7 +244,15 @@ export function mapTextSegments(
   { foreign = false }: { foreign?: boolean } = {}
 ): ReactNode {
   const runs: Runs = { done: [], current: [] };
-  collectText(children, runs, foreign);
+  // Pass one only reads. It leaves every text and element as it found it.
+  walk(children, foreign, {
+    text: value => {
+      runs.current.push(value);
+      return value;
+    },
+    boundary: () => endRun(runs),
+    element: element => element,
+  });
   endRun(runs);
   if (runs.done.length === 0) {
     return children;
@@ -259,6 +265,12 @@ export function mapTextSegments(
     }
     return result;
   });
+  // Pass two is the same walk, so it meets the segments in the same order.
+  // Changed elements are cloned, which keeps key, ref and props.
   let index = 0;
-  return replaceText(children, () => mapped[index++] ?? "", foreign);
+  return walk(children, foreign, {
+    text: () => mapped[index++] ?? "",
+    boundary: () => undefined,
+    element: withChildren,
+  });
 }

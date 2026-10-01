@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { hyphenate } from "../src";
 import {
   cleanCopiedPlainText,
@@ -14,6 +16,7 @@ import {
   needsCleaning,
   shouldHandleCopy,
 } from "../src/client/clean";
+import { createLoader, loadedSkiptingar } from "../src/client/load";
 import { applyOptionsKey, optionsKey } from "../src/client/options";
 
 const SHY = "­";
@@ -149,6 +152,58 @@ describe("loadSkiptingar", () => {
   test("exports the hook", () => {
     expect(typeof useHyphenate).toBe("function");
   });
+
+  test("loadedSkiptingar returns the core once it has loaded, and never starts a load", async () => {
+    const core = await loadSkiptingar();
+    expect(loadedSkiptingar()).toBe(core);
+  });
+});
+
+describe("createLoader", () => {
+  const fakeCore = {} as Awaited<ReturnType<typeof loadSkiptingar>>;
+
+  test("calls the import once and shares its promise", async () => {
+    let calls = 0;
+    const loader = createLoader(() => {
+      calls += 1;
+      return Promise.resolve(fakeCore);
+    });
+    expect(loader.loaded()).toBeUndefined();
+    const first = loader.load();
+    expect(loader.load()).toBe(first);
+    expect(await first).toBe(fakeCore);
+    expect(loader.loaded()).toBe(fakeCore);
+    expect(await loader.load()).toBe(fakeCore);
+    expect(calls).toBe(1);
+  });
+
+  test("a failed load rejects, is forgotten, and the next call tries again", async () => {
+    let calls = 0;
+    const loader = createLoader(() => {
+      calls += 1;
+      return calls === 1
+        ? Promise.reject(new Error("chunk failed"))
+        : Promise.resolve(fakeCore);
+    });
+    await expect(loader.load()).rejects.toThrow("chunk failed");
+    expect(loader.loaded()).toBeUndefined();
+    expect(await loader.load()).toBe(fakeCore);
+    expect(calls).toBe(2);
+  });
+});
+
+describe("useHyphenate on the server", () => {
+  function Probe({ text }: { text: string }) {
+    return createElement("p", null, useHyphenate(text));
+  }
+
+  test("returns the text as given, even after the core has loaded", async () => {
+    await loadSkiptingar();
+    const html = renderToStaticMarkup(
+      createElement(Probe, { text: "Hraðbrautarframkvæmdir" })
+    );
+    expect(html).toBe("<p>Hraðbrautarframkvæmdir</p>");
+  });
 });
 
 describe("hook options", () => {
@@ -158,6 +213,28 @@ describe("hook options", () => {
     );
     expect(optionsKey(undefined)).toBe(optionsKey({}));
     expect(optionsKey({ mode: "heading" })).not.toBe(optionsKey({ mode: "body" }));
+  });
+
+  test("optionsKey ignores the key order of nested options too", () => {
+    expect(
+      optionsKey({ typeset: { quotes: true, singleLetter: true }, mode: "heading" })
+    ).toBe(
+      optionsKey({ mode: "heading", typeset: { singleLetter: true, quotes: true } })
+    );
+    expect(optionsKey({ typeset: { quotes: undefined, dashes: true } })).toBe(
+      optionsKey({ typeset: { dashes: true } })
+    );
+    expect(optionsKey({ typeset: { dashes: true } })).not.toBe(
+      optionsKey({ typeset: { dashes: false } })
+    );
+  });
+
+  test("applyOptionsKey reads NFD text like NFC text", async () => {
+    const core = await loadSkiptingar();
+    const key = optionsKey({ typeset: { singleLetter: true } });
+    const nfd = "á fund".normalize("NFD");
+    expect(applyOptionsKey(core, nfd, key)).toBe(`á${NBSP}fund`);
+    expect(applyOptionsKey(core, "á fund", key)).toBe(`á${NBSP}fund`);
   });
 
   test("applyOptionsKey typesets and hyphenates by default", async () => {

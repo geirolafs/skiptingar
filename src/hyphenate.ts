@@ -1,5 +1,7 @@
+import { SOFT_HYPHEN } from "./characters";
 import { patternBreaks } from "./engine";
 import { lookupException } from "./exceptions";
+import { DATA_LEFT_MIN, DATA_RIGHT_MIN } from "./generated/data";
 import { findProtectedMask, isProtected } from "./url";
 
 export type HyphenateOptions = {
@@ -114,20 +116,18 @@ function isAcronym(word: string, length: number): boolean {
 
 type Limits = { minWordLength: number; leftMin: number; rightMin: number };
 
-const SOFT_HYPHEN = "­";
-
 const PRESETS = {
   typographic: {
     body: { minWordLength: 6, leftMin: 2, rightMin: 3 },
     heading: { minWordLength: 12, leftMin: 3, rightMin: 4 },
   },
   ritreglur: {
-    body: { minWordLength: 4, leftMin: 1, rightMin: 2 },
-    heading: { minWordLength: 4, leftMin: 1, rightMin: 2 },
+    body: { minWordLength: 4, leftMin: DATA_LEFT_MIN, rightMin: DATA_RIGHT_MIN },
+    heading: { minWordLength: 4, leftMin: DATA_LEFT_MIN, rightMin: DATA_RIGHT_MIN },
   },
 } as const satisfies Record<string, Record<string, Limits>>;
 
-const SOFT_HYPHENS = /­/g;
+const SOFT_HYPHENS = new RegExp(SOFT_HYPHEN, "g");
 const WHITESPACE_RUNS = /(\s+)/;
 const LETTER_RUNS = /\p{L}+/gu;
 // Tokens with a digit, `@`, `/`, `_` or `#` are skipped whole. URLs, bare
@@ -154,61 +154,151 @@ function lowerKeepingLength(chars: string[]): string {
     .join("");
 }
 
+type WordCandidates = {
+  /** Every break the word allows before the limits apply, joints included. */
+  breaks: readonly number[];
+  /** The compound joints among them. Empty unless `withJoints` was asked for. */
+  joints: readonly number[];
+  /** Whether a break "after N letters" respects the left and right minimums. */
+  fits: (position: number) => boolean;
+};
+
+/**
+ * What the lists and the patterns say about one word, or `undefined` when the
+ * word is too short or is an acronym. A listed word wins over the patterns.
+ * The `NAME_ENDINGS` joint is only looked up when `withJoints` is set,
+ * because body mode does not use it.
+ */
+function wordCandidates(
+  word: string,
+  options: HyphenateOptions,
+  withJoints: boolean
+): WordCandidates | undefined {
+  const { minWordLength, leftMin, rightMin } = resolveLimits(options);
+  const chars = [...word.normalize("NFC")];
+  const length = chars.length;
+  if (length < minWordLength || length < 2) {
+    return undefined;
+  }
+
+  if (options.skipAcronyms !== false && isAcronym(chars.join(""), length)) {
+    return undefined;
+  }
+
+  const lower = lowerKeepingLength(chars);
+  const useLists = options.exceptions !== false;
+  const entry = useLists ? lookupException(lower) : undefined;
+  const fits = (position: number) => position >= leftMin && length - position >= rightMin;
+  if (entry) {
+    return { breaks: entry.breaks, joints: entry.joints, fits };
+  }
+
+  const breaks = patternBreaks(lower);
+  const joint = useLists && withJoints ? nameJoint(lower, length, breaks) : undefined;
+  return { breaks, joints: joint === undefined ? [] : [joint], fits };
+}
+
 /**
  * Break positions for one word, as "after N letters" (code points of the NFC
  * form), ascending.
  * The word must be letters only. The original case is fine.
  */
 export function hyphenateWord(word: string, options: HyphenateOptions = {}): number[] {
-  const { minWordLength, leftMin, rightMin } = resolveLimits(options);
-  const chars = [...word.normalize("NFC")];
-  const length = chars.length;
-  if (length < minWordLength || length < 2) {
-    return [];
-  }
-
-  if (options.skipAcronyms !== false && isAcronym(chars.join(""), length)) {
-    return [];
-  }
-
-  const lower = lowerKeepingLength(chars);
-  const useLists = options.exceptions !== false;
-  const entry = useLists ? lookupException(lower) : undefined;
   const heading = options.mode === "heading";
-
-  let candidates: readonly number[];
-  if (entry) {
-    // A listed word wins over everything else.
-    candidates = heading && entry.joints.length > 0 ? entry.joints : entry.breaks;
-  } else {
-    // In heading mode a name joint that the patterns allow is preferred. In
-    // body mode NAME_ENDINGS changes nothing.
-    const fromPatterns = patternBreaks(lower);
-    const joint =
-      useLists && heading ? nameJoint(lower, length, fromPatterns) : undefined;
-    candidates = joint === undefined ? fromPatterns : [joint];
+  const found = wordCandidates(word, options, heading);
+  if (!found) {
+    return [];
   }
-
-  return candidates.filter(i => i >= leftMin && length - i >= rightMin);
+  // In heading mode a joint, when there is one, replaces the other breaks. In
+  // body mode joints change nothing.
+  const candidates = heading && found.joints.length > 0 ? found.joints : found.breaks;
+  return candidates.filter(found.fits);
 }
 
-function hyphenateRun(
-  run: string,
-  options: HyphenateOptions,
-  hyphenChar: string
-): string {
-  const breaks = hyphenateWord(run, options);
-  if (breaks.length === 0) {
-    return run;
+/**
+ * The breaks of one word and the compound joints among them, both as "after N
+ * letters", ascending. `breaks` is what `hyphenateWord` gives in body mode.
+ * `joints` is where heading mode would prefer to break: the `=` joints of a
+ * listed word, or the `NAME_ENDINGS` joint. It is always a subset of `breaks`.
+ * The limits (`leftMin`, `rightMin`) apply to both.
+ */
+export function analyzeWord(
+  word: string,
+  options: HyphenateOptions = {}
+): { breaks: number[]; joints: number[] } {
+  const found = wordCandidates(word, options, true);
+  if (!found) {
+    return { breaks: [], joints: [] };
   }
-  const chars = [...run];
+  return {
+    breaks: found.breaks.filter(found.fits),
+    joints: found.joints.filter(found.fits),
+  };
+}
+
+/** Code-unit offset of the letter "after N letters" in `run`, from `start`. */
+function offsetAfter(run: string, letters: number, start: number): number {
+  let units = 0;
+  let seen = 0;
+  for (const ch of run) {
+    if (seen === letters) {
+      break;
+    }
+    units += ch.length;
+    seen += 1;
+  }
+  return start + units;
+}
+
+/** The text with soft hyphens removed and in NFC. Offsets refer to this form. */
+function cleanText(text: string): string {
+  // NFC first: a decomposed "á" (a + U+0301) would otherwise split the word.
+  return text.replace(SOFT_HYPHENS, "").normalize("NFC");
+}
+
+/**
+ * Where `hyphenate()` would put a break, as offsets into the text after
+ * soft hyphens are removed and it is put in NFC. A hyphen goes before the
+ * character at each offset. Ascending. Skips the same things `hyphenate()` skips.
+ *
+ * Use this to hyphenate text that is cut into pieces: join the pieces, ask for
+ * the offsets once, and cut them back.
+ */
+export function breakOffsets(text: string, options: HyphenateOptions = {}): number[] {
+  const clean = cleanText(text);
+  const mask = findProtectedMask(clean);
+
+  const offsets: number[] = [];
+  let tokenStart = 0;
+  for (const token of clean.split(WHITESPACE_RUNS)) {
+    const base = tokenStart;
+    tokenStart += token.length;
+    if (token === "" || SKIPPED_TOKEN.test(token)) {
+      continue;
+    }
+    for (const match of token.matchAll(LETTER_RUNS)) {
+      const run = match[0];
+      const start = base + match.index;
+      if (isProtected(mask, start, start + run.length)) {
+        continue;
+      }
+      for (const letters of hyphenateWord(run, options)) {
+        offsets.push(offsetAfter(run, letters, start));
+      }
+    }
+  }
+  return offsets;
+}
+
+/** Inserts `mark` into `text` before each offset. Offsets are ascending. */
+function insertAt(text: string, offsets: readonly number[], mark: string): string {
   let out = "";
   let from = 0;
-  for (const at of breaks) {
-    out += chars.slice(from, at).join("") + hyphenChar;
+  for (const at of offsets) {
+    out += text.slice(from, at) + mark;
     from = at;
   }
-  return out + chars.slice(from).join("");
+  return out + text.slice(from);
 }
 
 /**
@@ -221,25 +311,6 @@ function hyphenateRun(
  * caller owns removing it before a second run.
  */
 export function hyphenate(text: string, options: HyphenateOptions = {}): string {
-  const hyphenChar = options.hyphenChar ?? SOFT_HYPHEN;
-  // NFC first: a decomposed "á" (a + U+0301) would otherwise split the word.
-  const clean = text.replace(SOFT_HYPHENS, "").normalize("NFC");
-  const mask = findProtectedMask(clean);
-
-  let tokenStart = 0;
-  return clean
-    .split(WHITESPACE_RUNS)
-    .map(token => {
-      const base = tokenStart;
-      tokenStart += token.length;
-      if (token === "" || SKIPPED_TOKEN.test(token)) {
-        return token;
-      }
-      return token.replace(LETTER_RUNS, (run, offset: number) =>
-        isProtected(mask, base + offset, base + offset + run.length)
-          ? run
-          : hyphenateRun(run, options, hyphenChar)
-      );
-    })
-    .join("");
+  const clean = cleanText(text);
+  return insertAt(clean, breakOffsets(clean, options), options.hyphenChar ?? SOFT_HYPHEN);
 }

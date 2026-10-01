@@ -1,5 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { ACRONYM_LENGTH, hyphenate, hyphenateWord, NAME_ENDINGS } from "../src";
+import {
+  ACRONYM_LENGTH,
+  analyzeWord,
+  breakOffsets,
+  hyphenate,
+  hyphenateWord,
+  NAME_ENDINGS,
+  NO_BREAK_SPACE,
+  NON_BREAKING_HYPHEN,
+  SOFT_HYPHEN,
+} from "../src";
 
 const SHY = "­";
 const RITREGLUR = { rules: "ritreglur" } as const;
@@ -467,5 +477,78 @@ describe("performance", () => {
     const start = performance.now();
     hyphenate(input);
     expect(performance.now() - start).toBeLessThan(200);
+  });
+});
+
+describe("analyzeWord", () => {
+  test("a listed word gives its breaks and its = joints", () => {
+    expect(analyzeWord("vítamín", RITREGLUR)).toEqual({ breaks: [4], joints: [4] });
+    expect(analyzeWord("hraðbrautarframkvæmdir", RITREGLUR)).toEqual({
+      breaks: [4, 9, 11, 15, 20],
+      joints: [4, 11, 15],
+    });
+  });
+
+  test("an unlisted word gives its NAME_ENDINGS joint, taken from the patterns' breaks", () => {
+    const { breaks, joints } = analyzeWord("Akureyri", RITREGLUR);
+    expect(joints).toEqual([4]);
+    expect(breaks).toContain(4);
+  });
+
+  test("breaks equal hyphenateWord in body mode, and joints are a subset of them", () => {
+    for (const word of ["vítamín", "Akureyri", "Sigurðardóttir", "karfa", "Hveragerði"]) {
+      for (const options of [RITREGLUR, RAW_RITREGLUR, {}] as const) {
+        const { breaks, joints } = analyzeWord(word, options);
+        expect(breaks).toEqual(hyphenateWord(word, { ...options, mode: "body" }));
+        expect(breaks).toEqual(hyphenateWord(word, options));
+        for (const joint of joints) {
+          expect(breaks).toContain(joint);
+        }
+      }
+    }
+  });
+
+  test("the limits apply to the joints", () => {
+    expect(analyzeWord("vítamín", { rules: "ritreglur", leftMin: 5 })).toEqual({
+      breaks: [],
+      joints: [],
+    });
+  });
+
+  test("short words and acronyms give nothing", () => {
+    expect(analyzeWord("ab")).toEqual({ breaks: [], joints: [] });
+    expect(analyzeWord("UNESCO", RITREGLUR)).toEqual({ breaks: [], joints: [] });
+  });
+
+  test("hyphenateWord still prefers joints in heading mode", () => {
+    expect(hyphenateWord("hraðbrautarframkvæmdir", { mode: "heading" })).toEqual([
+      4, 11, 15,
+    ]);
+  });
+});
+
+describe("breakOffsets", () => {
+  test("gives the offsets that hyphenate() inserts at", () => {
+    const text =
+      "Hraðbrautarframkvæmdir á landsbyggðinni, https://hraðbrautarframkvæmdir.is";
+    const offsets = breakOffsets(text, RITREGLUR);
+    const rebuilt = [...offsets, text.length].reduce(
+      (acc, at) => ({ out: acc.out + text.slice(acc.from, at) + SOFT_HYPHEN, from: at }),
+      { out: "", from: 0 }
+    ).out;
+    expect(rebuilt.slice(0, -1)).toBe(hyphenate(text, RITREGLUR));
+  });
+
+  test("counts in the cleaned NFC text, without soft hyphens", () => {
+    const messy = `Hrað${SOFT_HYPHEN}braut`.normalize("NFD");
+    expect(breakOffsets(messy, RITREGLUR)).toEqual(breakOffsets("Hraðbraut", RITREGLUR));
+  });
+});
+
+describe("character constants", () => {
+  test("are the invisible characters", () => {
+    expect(SOFT_HYPHEN).toBe("\u00AD");
+    expect(NO_BREAK_SPACE).toBe("\u00A0");
+    expect(NON_BREAKING_HYPHEN).toBe("\u2011");
   });
 });

@@ -1,10 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { buildDataModule, GENERATED_PATH } from "../scripts/build-data";
+import { buildDataModule, GENERATED_PATH, renderDataModule } from "../scripts/build-data";
 import { EXCEPTION_COUNT, PATTERN_COUNT } from "../src";
 import { parseExceptions } from "../src/exceptions";
-import { EXCEPTIONS, PATTERNS } from "../src/generated/data";
+import {
+  DATA_LEFT_MIN,
+  DATA_RIGHT_MIN,
+  EXCEPTIONS,
+  PATTERNS,
+} from "../src/generated/data";
 
 const PACKAGE_ROOT = join(import.meta.dir, "..");
 
@@ -23,6 +28,24 @@ describe("generated data", () => {
     expect(PATTERN_COUNT).toBe(dicLines.length - 3);
     expect(PATTERN_COUNT).toBeGreaterThan(20_000);
     expect(EXCEPTION_COUNT).toBeGreaterThan(0);
+  });
+
+  test("a malformed exceptions file fails the build", () => {
+    const dic = "UTF-8\nLEFTHYPHENMIN 1\nRIGHTHYPHENMIN 2\na1b\n";
+    expect(() => renderDataModule(dic, "ok-word\nbad--word\n")).toThrow("line 2");
+    expect(renderDataModule(dic, "# c\nok-word\n")).toContain("EXCEPTION_COUNT = 1;");
+  });
+
+  test("the pattern minimums come from the dictionary header", () => {
+    const dic = readFileSync(join(PACKAGE_ROOT, "data", "hyph_is.dic"), "utf8");
+    expect(dic).toContain(`LEFTHYPHENMIN ${DATA_LEFT_MIN}\n`);
+    expect(dic).toContain(`RIGHTHYPHENMIN ${DATA_RIGHT_MIN}\n`);
+    expect(() => renderDataModule("UTF-8\na1b\n", "")).toThrow("LEFTHYPHENMIN");
+  });
+
+  test("the patterns are sorted", () => {
+    const lines = PATTERNS.split("\n");
+    expect(lines).toEqual([...lines].sort());
   });
 
   test("carries a do-not-edit header", () => {

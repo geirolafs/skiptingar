@@ -345,6 +345,35 @@ describe("rule 8: dashes (opt-in)", () => {
     expect(typeset(input, { dashes: true })).toBe(input);
   });
 
+  test.each([
+    ["bls. 12-34", "bls.~12–34"],
+    ["Árin 1990-2000", "Árin 1990–2000"],
+    ["Árin 2020-21", "Árin 2020–21"],
+    ["Sjá 5-10 manns", "Sjá 5–10 manns"],
+    ["(5-10)", "(5–10)"],
+  ])("still converts the range in %p", (input, expected) => {
+    expect(show(typeset(input, { dashes: true }))).toBe(expected);
+  });
+
+  test.each([
+    "AB12-34CD",
+    "A4-2024",
+    "ISO 8601-1",
+    "F-35",
+    "ISO 8601-1:2019",
+    "Dagsetning 2020-12-31",
+    "12-34CD",
+    "AB12-34",
+  ])("a hyphen that touches a letter or a part number is not a range: %p", input => {
+    expect(typeset(input, { dashes: true })).toBe(input);
+  });
+
+  test("a phone number and a kennitala keep their hyphen with the numbers rule off", () => {
+    for (const input of ["Sími 555-1234", "Kt. 010190-2939"]) {
+      expect(typeset(input, { dashes: true, numbers: false })).not.toContain("–");
+    }
+  });
+
   test("never turns a phone number or kennitala hyphen into an en dash", () => {
     // With the numbers rule off they keep the plain hyphen. With it on (the
     // default) they get U+2011, which is not an en dash either.
@@ -637,6 +666,24 @@ describe("URL protection", () => {
     expect(typeset("Árin 1990-2000 á example.is/1990-2000 nú", { dashes: true })).toBe(
       "Árin 1990–2000 á example.is/1990-2000 nú"
     );
+  });
+});
+
+describe("NFC normalisation", () => {
+  test("a decomposed letter is read as one letter", () => {
+    const nfc = "á fund";
+    const nfd = nfc.normalize("NFD");
+    expect(nfd).not.toBe(nfc);
+    expect(typeset(nfd, { singleLetter: true })).toBe(`á${NB}fund`);
+    expect(typeset(nfc, { singleLetter: true })).toBe(`á${NB}fund`);
+  });
+
+  test("returns NFC segments and keeps the segment count", () => {
+    const out = typesetSegments(["Sjá ".normalize("NFD"), "á fund".normalize("NFD")], {
+      singleLetter: true,
+    });
+    expect(out).toEqual(["Sjá ", `á${NB}fund`]);
+    expect(out.every(segment => segment === segment.normalize("NFC"))).toBe(true);
   });
 });
 

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { HyphenateOptions, TypesetOptions } from "../index";
-import { resolveTypeset, transformChildren } from "./transform";
+import { resolveTypeset } from "../index";
+import { transformChildren } from "./transform";
 import { toFragment } from "./walk";
 
 export type HyphenateProps = Omit<HyphenateOptions, "hyphenChar"> & {
@@ -32,10 +33,12 @@ export type HyphenateProps = Omit<HyphenateOptions, "hyphenChar"> & {
  * - Text in `code`, `pre`, `kbd`, `samp`, `var`, `script`, `style`, `textarea`,
  *   `svg` and `math` is left alone. So is any element with `translate="no"` or
  *   `data-skiptingar="off"`.
- * - Text under an element with a `lang` that is not Icelandic (`is`, `is-*`,
- *   any case) is left alone, and it also ends the run for typesetting. English
- *   words follow English division, and Icelandic quotes do not fit English text.
- *   A `lang="is"` inside it turns processing back on.
+ * - Text under a host element with a `lang` that is not Icelandic (`is`,
+ *   `is-*`, any case) is left alone, and it also ends the run for
+ *   typesetting. English words follow English division, and Icelandic quotes
+ *   do not fit English text. A `lang="is"` inside it turns processing back on.
+ *   The `lang` and `translate` props of a component are its own and are not
+ *   read. `data-skiptingar="off"` works on any element.
  * - Attributes such as `title` and `aria-label` are not changed.
  * - Components are never called. Only their `children` prop is visited. Text
  *   that a component renders by itself is not reached. To cover it, call

@@ -95,13 +95,52 @@ type it that way.
 Standard abbreviations (`t.d.`, `o.s.frv.`) need no help, because they contain
 no spaces and so never break across lines.
 
-`hyphenate()` and the React components turn their input into NFC first, so a
-decomposed `á` (`a` plus a combining accent) still hyphenates. `typeset()` never
-changes the length of the text, so it cannot normalise: give it NFC text
-(`text.normalize("NFC")`).
+`hyphenate()`, `typeset()` and the React components turn their input into NFC
+first, so a decomposed `á` (`a` plus a combining accent) still hyphenates and
+typesets. The text that comes back is NFC. Apart from that, `typeset()` only
+swaps characters one for one.
 
 Both functions leave URLs, email addresses and domains alone, and running
 them twice gives the same result as running them once.
+
+The invisible characters have names, so you do not have to paste them into
+source code: `SOFT_HYPHEN` (U+00AD), `NO_BREAK_SPACE` (U+00A0) and
+`NON_BREAKING_HYPHEN` (U+2011).
+
+#### Text in pieces: `processSegments`
+
+```ts
+import { processSegments } from "skiptingar";
+
+processSegments(["Hraðbrautar", "framkvæmdir"], { hyphenate: {}, typeset: {} });
+// ["Hrað­braut­ar­", "fram­kvæmdir"]
+```
+
+This is what `<Hyphenate>` runs on each run of text. Give it the text pieces
+of one run (for example the text nodes of a paragraph split by `<em>`). It puts
+each piece in NFC, removes soft hyphens, typesets across the pieces, then
+hyphenates the joined text and cuts the breaks back into the pieces. So a word
+split by markup breaks like the whole word, and a web address split by markup
+is still found. A break on the border between two pieces goes at the end of the
+earlier piece. It returns one string for each piece. Pass `false`, or leave out
+`hyphenate` or `typeset`, to skip that step. `resolveTypeset(true | false |
+options)` turns the `typeset` prop of the components into these options.
+`breakOffsets(text, options)` is the lower level: the offsets where
+`hyphenate()` would insert a break.
+
+#### One word: `analyzeWord`
+
+```ts
+import { analyzeWord } from "skiptingar";
+
+analyzeWord("vítamín", { rules: "ritreglur" });
+// { breaks: [4], joints: [4] }
+```
+
+`breaks` is what `hyphenateWord()` returns in body mode: every break the word
+allows, as "after N letters". `joints` is where heading mode prefers to break:
+the `=` joints of a listed word, or the `NAME_ENDINGS` joint. It is always a
+subset of `breaks`. Both obey `leftMin` and `rightMin`.
 
 ### 2. React Server Components
 
@@ -117,9 +156,14 @@ import { Hyphenate } from "skiptingar/react";
 
 `<Hyphenate>` walks the JSX you give it and changes only text. It hyphenates
 and typesets (pass `typeset={false}` to skip typesetting). Quotes pair across
-inline elements. It skips `code`, `pre`, `kbd`, `samp`, `var`, `svg`, `math`,
-and anything marked `translate="no"` or `data-skiptingar="off"`.
-`<Typeset>` does the typesetting only.
+inline elements, and a word split by inline markup (`hest<span>arnir</span>`)
+is hyphenated as one word. It skips `code`, `pre`, `kbd`, `samp`, `var`, `svg`,
+`math`, and anything marked `translate="no"` or `data-skiptingar="off"`. The
+`lang` and `translate` props count on HTML elements only, never on your own
+components. `<Typeset>` does the typesetting only.
+
+Both components rebuild their children with `createElement`, so React's
+missing-key warning for a list inside them is not shown. Add the keys yourself.
 
 It can't see inside components. Text you pass as children is reached; text a
 component renders on its own is not. For that, call `hyphenate()` in the server
@@ -137,12 +181,22 @@ function Caption({ text }: { text: string }) {
 ```
 
 Use this for text that only exists in the browser, like something a user
-types. The patterns load lazily the first time, about 70 kB compressed (brotli). Until
-then the hook returns the text as it is. Anything you can do on the server,
-do on the server.
+types. The patterns load lazily the first time, about 54 kB compressed (brotli); the
+rest of the client entry is about 8 kB. Until then the hook returns the text as
+it is, and so does it if the chunk fails to load. The next component that
+mounts tries the load again. A component that mounts after the load gets the
+processed text on its first render. Anything you can do on the server, do on
+the server.
 
 `<CleanCopy />` mounts once per page and takes soft hyphens and no-break
 spaces out of copied text, so pasted text and search stay clean.
+
+## Browser support
+
+The typeset rules use regular expression lookbehind, which needs Safari 16.4
+or newer (Chrome 62 and Firefox 78 are older than that). The client entry
+needs it too, because it runs the same code. Server-side use has no browser
+limit.
 
 ## CSS to pair it with
 
