@@ -52,16 +52,13 @@ function getTable(): PatternTable {
 }
 
 /**
- * Break positions the patterns allow in a lowercase word, with no minimum
- * left or right margin applied. A position `i` means "after `i` letters", so
- * every value lies in `1..letters - 1`. Letters are counted in code points.
+ * The winning digit at every slot of a lowercase word, as Liang's algorithm
+ * finds it: the word is wrapped in boundary dots, and slot `i` sits before
+ * `chars[i]`. So the slot between letter `n` and letter `n + 1` (1-based) is
+ * `points[n + 1]`. Odd allows a break there, even forbids one. Exported for
+ * the playground's diagram; `patternBreaks` is the API.
  */
-export function patternBreaks(lowerWord: string): readonly number[] {
-  const cached = cache.get(lowerWord);
-  if (cached) {
-    return cached;
-  }
-
+export function patternPoints(lowerWord: string): Uint8Array {
   const { weights, maxKeyLength } = getTable();
   const chars = [".", ...lowerWord, "."];
   const points = new Uint8Array(chars.length + 1);
@@ -83,6 +80,22 @@ export function patternBreaks(lowerWord: string): readonly number[] {
       }
     }
   }
+  return points;
+}
+
+/**
+ * Break positions the patterns allow in a lowercase word, with no minimum
+ * left or right margin applied. A position `i` means "after `i` letters", so
+ * every value lies in `1..letters - 1`. Letters are counted in code points.
+ */
+export function patternBreaks(lowerWord: string): readonly number[] {
+  const cached = cache.get(lowerWord);
+  if (cached) {
+    return cached;
+  }
+
+  const points = patternPoints(lowerWord);
+  const chars = [".", ...lowerWord, "."];
 
   // chars[0] is the leading dot, so a break after `i` letters sits before
   // chars[i + 1], which is points[i + 1].
