@@ -232,8 +232,8 @@ paragraph the way a typesetter would (a Knuth–Plass search with a cost for a
 ragged edge): lines that are full enough, no line jutting out past the one
 above or leaving a hole, short words such as `og` and `í` kept off line ends
 when that does not cost more elsewhere, few hyphens and no 3-letter pieces,
-and a last line that is not one word or the tail of a broken one. It needs the
-real line widths, so it runs in the browser.
+and a last line of one word or the tail of a broken one only when the edge is
+better for it. It needs the real line widths, so it runs in the browser.
 
 ```tsx
 "use client";
