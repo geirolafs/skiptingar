@@ -243,10 +243,29 @@ function wordCandidates(
 
   const patterns = patternBreaks(lower);
   const breaks = typographic ? dropLinkingBreaks([...lower], patterns) : patterns;
+  if (!(useLists && withJoints)) {
+    return { breaks, joints: [], fits };
+  }
+  // The break kept after a linking syllable is a compound's joint
+  // (`sveitar|stjórnar|kosningum`), and so is a name's ending.
+  const joints = new Set(linkedJoints(patterns, breaks));
   const capitalised = chars[0] !== lower[0];
-  const joint =
-    useLists && withJoints && capitalised ? nameJoint(lower, length, breaks) : undefined;
-  return { breaks, joints: joint === undefined ? [] : [joint], fits };
+  const joint = capitalised ? nameJoint(lower, length, breaks) : undefined;
+  if (joint !== undefined) {
+    joints.add(joint);
+  }
+  return { breaks, joints: [...joints].sort((a, b) => a - b), fits };
+}
+
+/**
+ * The breaks that `dropLinkingBreaks` kept after a linking syllable: where it
+ * dropped a break at p, the one at p + 2 ends the genitive, which is where the
+ * compound joins (`stjórnar|völd`).
+ */
+function linkedJoints(patterns: readonly number[], kept: readonly number[]): number[] {
+  return patterns
+    .filter(position => !kept.includes(position) && kept.includes(position + 2))
+    .map(position => position + 2);
 }
 
 /**
@@ -271,7 +290,9 @@ export function hyphenateWord(word: string, options: HyphenateOptions = {}): num
  * The breaks of one word and the compound joints among them, both as "after N
  * letters", ascending. `breaks` is what `hyphenateWord` gives in body mode.
  * `joints` is where heading mode would prefer to break: the `=` joints of a
- * listed word, or the `NAME_ENDINGS` joint. It is always a subset of `breaks`.
+ * listed word, or, with typographic rules, the break after a linking
+ * syllable (`stjórnar|völd`) and the `NAME_ENDINGS` joint. It is always a
+ * subset of `breaks`.
  * The limits (`leftMin`, `rightMin`) apply to both.
  */
 export function analyzeWord(

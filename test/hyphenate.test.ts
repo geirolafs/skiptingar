@@ -606,3 +606,18 @@ describe("tokens with digits or a slash", () => {
     expect(show(hyphenate(token))).toBe(expected);
   });
 });
+
+describe("linked joints in heading mode", () => {
+  test.each([
+    ["sveitarstjórnarkosningum", "sveitar-stjórnar-kosningum"],
+    ["Hrafnafjarðarbyggð", "Hrafnafjarðar-byggð"],
+    ["KEFLAVÍKURFLUGVÖLLUR", "KEFLAVÍKUR-FLUGVÖLLUR"],
+    ["hjúkrunarfræðingar", "hjúkrunar-fræðingar"],
+  ])("%s breaks only after its linking syllables", (word, expected) => {
+    expect(show(hyphenate(word, { mode: "heading" }))).toBe(expected);
+  });
+
+  test("body mode keeps its other breaks", () => {
+    expect(show(hyphenate("Hrafnafjarðarbyggð"))).toBe("Hrafna-fjarðar-byggð");
+  });
+});

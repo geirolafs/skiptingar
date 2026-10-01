@@ -164,6 +164,14 @@ export type MeasuredLine = {
 
 export type RagOptions = {
   /**
+   * Set a title, not a paragraph: keep as few lines as greedy wrapping would
+   * and make them as even as possible, the way `text-wrap: balance` does,
+   * instead of filling each line. Steps between lines count, the last line's
+   * too; short pieces, hyphens and a last line of one word still cost what
+   * they do in body text. Default false.
+   */
+  balance?: boolean;
+  /**
    * What a last line of a single word costs, like "Rangárvöllum." alone. Its
    * gap is free (a last line is meant to be short), but one word on its own
    * looks lost. The default makes it about as bad as a line left half empty.
@@ -218,6 +226,7 @@ export type RagOptions = {
 };
 
 export const DEFAULT_RAG_OPTIONS: Required<RagOptions> = {
+  balance: false,
   runtWeight: 0.25,
   lastHyphenWeight: 0.25,
   shortWordWeight: 0.04,
@@ -230,8 +239,11 @@ export const DEFAULT_RAG_OPTIONS: Required<RagOptions> = {
   overshoot: 0,
 };
 
+/** The options that are numbers: the weights and sizes. */
+type Weight = Exclude<keyof RagOptions, "balance">;
+
 /** One option, or its default. `??`, not a spread: `{ holeWeight: undefined }` gets the default. */
-function weightOf<K extends keyof RagOptions>(options: RagOptions, key: K): number {
+function weightOf(options: RagOptions, key: Weight): number {
   return options[key] ?? DEFAULT_RAG_OPTIONS[key];
 }
 
@@ -246,7 +258,7 @@ export function lineCost(
   measure: number,
   options: RagOptions = {}
 ): number {
-  const weight = (key: keyof RagOptions) => weightOf(options, key);
+  const weight = (key: Weight) => weightOf(options, key);
   const gap = Math.max(0, measure - line.width) / measure;
   let cost = gap * gap;
   if (line.hangingShortWord) {
@@ -316,6 +328,12 @@ export function ragCost(
 
 /** What a line wider than the measure costs: far more than any other fault. */
 const OVERFLOW_COST = 10;
+
+/**
+ * What every line of a title costs (`balance`): more than evening out the
+ * edge can save, so a title keeps the fewest lines it can have.
+ */
+const TITLE_LINE_COST = 1;
 
 /** Within this many px of the measure, a fit is too close to trust. */
 const SLACK = 0.75;
@@ -544,10 +562,26 @@ export function bestBreaks(
       hyphen: ending?.hyphen,
     };
   };
+  // A title pays for each line instead of for the gaps at its end.
+  const balance = options.balance === true;
+  const lineTerm = (
+    current: MeasuredLine,
+    previous: MeasuredLine | undefined,
+    after: MeasuredLine
+  ) => {
+    const cost = lineCost(current, previous, after, measure, weights);
+    if (!balance) {
+      return cost;
+    }
+    const gap = Math.max(0, measure - current.width) / measure;
+    return cost - gap * gap + TITLE_LINE_COST;
+  };
   // Every weight resolved once, so `lineCost` finds each without a fallback.
   const weights: Required<RagOptions> = { ...DEFAULT_RAG_OPTIONS };
   for (const name of Object.keys(weights) as (keyof RagOptions)[]) {
-    weights[name] = weightOf(options, name);
+    if (name !== "balance") {
+      weights[name] = weightOf(options, name);
+    }
   }
   // A line from `from` that ends at `to` can be reproduced: no dash break
   // after `to` still fits on it, since that break could not be forbidden.
@@ -621,9 +655,7 @@ export function bestBreaks(
           continue;
         }
         const cost =
-          state.cost +
-          lineCost(current, previous, after.line, measure, weights) +
-          after.overflow;
+          state.cost + lineTerm(current, previous, after.line) + after.overflow;
         const known = ending[after.next]?.get(k);
         if (!known || cost < known.cost) {
           ending[after.next]?.set(k, {
@@ -639,12 +671,18 @@ export function bestBreaks(
     }
   }
 
-  // The last line: one word alone, or the tail of a hyphenated word.
+  // The last line: one word alone, or the tail of a hyphenated word. In a
+  // title it is a line like the others, and its step from the line above counts.
   const lastLineCost = (state: State) => {
     if (state.lines < 2) {
       return 0;
     }
     let cost = 0;
+    if (balance) {
+      const step =
+        (line(state.start, last).width - line(state.before, state.start).width) / measure;
+      cost += TITLE_LINE_COST + weights.stepWeight * step * step;
+    }
     const tail = text.slice(at(state.start).next).trim();
     if (!WORD_SEPARATOR.test(tail)) {
       cost += weights.runtWeight;

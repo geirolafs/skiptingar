@@ -138,3 +138,35 @@ describe("hang characters", () => {
     expect(hangCharacter("abc", 2)).toBe("c");
   });
 });
+
+describe("balance (titles)", () => {
+  const title = "Kjörsókn í Hrafnafjarðarbyggð aldrei meiri í kosningum";
+
+  test("keeps the greedy number of lines and evens them out", () => {
+    for (let measure = 203; measure <= 503; measure += 20) {
+      const metrics = monospace(title, measure);
+      const greedyLines = greedy(title, metrics).length + 1;
+      const plan = bestBreaks(title, metrics, { balance: true });
+      expect(plan?.lines).toBe(greedyLines);
+      const set = forbidBreaks(title, plan?.forbidden ?? [], { keepLength: true });
+      expect(greedy(set, metrics)).toEqual(plan?.ends.map(end => end.after) ?? []);
+    }
+  });
+
+  test("a two-line title splits near the middle, not after the first line fills", () => {
+    const metrics = monospace(title, 400);
+    const filled = bestBreaks(title, metrics);
+    const balanced = bestBreaks(title, metrics, { balance: true });
+    const firstLine = (plan: typeof filled) => (plan?.ends[0]?.after ?? 0) * 10;
+    expect(plan2(filled)).toBe(2);
+    expect(plan2(balanced)).toBe(2);
+    const half = (title.length * 10) / 2;
+    expect(Math.abs(firstLine(balanced) - half)).toBeLessThan(
+      Math.abs(firstLine(filled) - half)
+    );
+  });
+});
+
+function plan2(plan: { lines: number } | null): number {
+  return plan?.lines ?? 0;
+}
