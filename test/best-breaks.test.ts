@@ -188,3 +188,11 @@ describe("splitHangs", () => {
     expect(splitHangs("abc", [])).toEqual([{ start: 0, text: "abc" }]);
   });
 });
+
+describe("a joined range", () => {
+  test("is never a place to break", () => {
+    const text = "aaaa 1990–⁠2010 bbbb";
+    const plan = bestBreaks(text, monospace(text, 100));
+    expect(plan?.ends.map(end => text.slice(end.after))).not.toContain("2010 bbbb");
+  });
+});

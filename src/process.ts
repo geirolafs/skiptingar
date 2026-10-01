@@ -1,4 +1,9 @@
-import { SOFT_HYPHEN, SOFT_HYPHENS, WHITESPACE_RUNS } from "./characters";
+import {
+  insertAcrossSegments,
+  SOFT_HYPHEN,
+  SOFT_HYPHENS,
+  WHITESPACE_RUNS,
+} from "./characters";
 import type { HyphenateOptions } from "./hyphenate";
 import { breakOffsets } from "./hyphenate";
 import type { TypesetOptions } from "./typeset";
@@ -19,33 +24,6 @@ export function resolveTypeset(
     return {};
   }
   return value;
-}
-
-/** Inserts `mark` into the segments at offsets into their joined text. */
-function insertAcrossSegments(
-  segments: readonly string[],
-  offsets: readonly number[],
-  mark: string
-): string[] {
-  let next = 0;
-  let start = 0;
-  return segments.map(segment => {
-    const end = start + segment.length;
-    let out = "";
-    let from = 0;
-    // An offset on a border goes at the end of the earlier segment.
-    while (true) {
-      const at = offsets[next];
-      if (at === undefined || at > end) {
-        break;
-      }
-      out += segment.slice(from, at - start) + mark;
-      from = at - start;
-      next += 1;
-    }
-    start = end;
-    return out + segment.slice(from);
-  });
 }
 
 /**

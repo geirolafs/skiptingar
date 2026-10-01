@@ -14,7 +14,7 @@
  * and how the result is written into the text. The client entry
  * (`client/rag.ts`) measures the real text and checks the plan in the browser.
  */
-import { NO_BREAK_SPACE, SOFT_HYPHEN } from "./characters";
+import { NO_BREAK_SPACE, SOFT_HYPHEN, WORD_JOINER } from "./characters";
 
 /**
  * Icelandic words that read badly at the end of a line: conjunctions,
@@ -142,9 +142,6 @@ export function splitHangs(text: string, hangs: readonly Hang[]): HangPiece[] {
   }
   return pieces;
 }
-
-/** U+2060 WORD JOINER: zero width, no break. Stands in for a forbidden soft hyphen in a trial. */
-const WORD_JOINER = "⁠";
 
 /**
  * The text with the given breaks forbidden. A forbidden space becomes a
@@ -427,6 +424,7 @@ function opportunities(text: string): Opportunity[] {
         !/\s/.test(before) &&
         !/\s/.test(after) &&
         after !== SOFT_HYPHEN &&
+        after !== WORD_JOINER &&
         !(character === "-" && DIGIT.test(after));
       if (breaksAfter) {
         found.push({ at: index, end: index + 1, next: index + 1, kind: "dash" });

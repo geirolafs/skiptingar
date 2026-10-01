@@ -65,6 +65,7 @@ describe("cleanCopiedText", () => {
 
   test("plain text clean-up turns U+2011 into a hyphen", () => {
     expect(cleanCopiedPlainText(`010190${NBH}2939`)).toBe("010190-2939");
+    expect(cleanCopiedPlainText("1990–\u20602010")).toBe("1990–2010");
   });
 
   test("plain text clean-up keeps a typed &nbsp;", () => {

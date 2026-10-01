@@ -1,21 +1,23 @@
 const SOFT_HYPHEN = /\u00AD/g;
 const NO_BREAK_SPACE = /\u00A0/g;
 const NON_BREAKING_HYPHEN = /\u2011/g;
+const WORD_JOINER = /\u2060/g;
 const SOFT_HYPHEN_ENTITY = /&(?:shy|#173|#xad);/gi;
 const NO_BREAK_SPACE_ENTITY = /&(?:nbsp|#160|#xa0);/gi;
 const NON_BREAKING_HYPHEN_ENTITY = /&(?:#8209|#x2011);/gi;
 
 /**
- * Plain text clean-up: removes soft hyphens, turns no-break spaces into normal
- * spaces and non-breaking hyphens (U+2011, used in phone numbers and
- * kennitala) into plain hyphens. Use this for `text/plain`, where a typed
+ * Plain text clean-up: removes soft hyphens and word joiners, turns no-break
+ * spaces into normal spaces and non-breaking hyphens (U+2011, used in phone
+ * numbers and kennitala) into plain hyphens. Use this for `text/plain`, where a typed
  * "&nbsp;" is real text.
  */
 export function cleanCopiedPlainText(text: string): string {
   return text
     .replace(SOFT_HYPHEN, "")
     .replace(NO_BREAK_SPACE, " ")
-    .replace(NON_BREAKING_HYPHEN, "-");
+    .replace(NON_BREAKING_HYPHEN, "-")
+    .replace(WORD_JOINER, "");
 }
 
 /**

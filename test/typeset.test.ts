@@ -183,7 +183,7 @@ describe("standard abbreviations without spaces", () => {
   test("are not treated as domains", () => {
     const text = 'Hann sagði "t.d. o.s.frv. þ.e.a.s. u.þ.b." og fór 1990-2000';
     expect(typeset(text, { dashes: true })).toBe(
-      "Hann sagði „t.d. o.s.frv. þ.e.a.s. u.þ.b.“ og fór 1990–2000"
+      "Hann sagði „t.d. o.s.frv. þ.e.a.s. u.þ.b.“ og fór 1990–\u20602000"
     );
   });
 });
@@ -330,7 +330,7 @@ describe("rule 7: last two words (opt-in)", () => {
 
 describe("rule 8: dashes (opt-in)", () => {
   test.each([
-    ["Árin 1990-2000 voru góð", "Árin 1990–2000 voru góð"],
+    ["Árin 1990-2000 voru góð", "Árin 1990–\u20602000 voru góð"],
     ["Reykjavík - Akureyri", "Reykjavík\u00a0– Akureyri"],
   ])("converts %p", (input, expected) => {
     expect(typeset(input, { dashes: true })).toBe(expected);
@@ -346,11 +346,11 @@ describe("rule 8: dashes (opt-in)", () => {
   });
 
   test.each([
-    ["bls. 12-34", "bls.~12–34"],
-    ["Árin 1990-2000", "Árin 1990–2000"],
-    ["Árin 2020-21", "Árin 2020–21"],
-    ["Sjá 5-10 manns", "Sjá 5–10 manns"],
-    ["(5-10)", "(5–10)"],
+    ["bls. 12-34", "bls.~12–\u206034"],
+    ["Árin 1990-2000", "Árin 1990–\u20602000"],
+    ["Árin 2020-21", "Árin 2020–\u206021"],
+    ["Sjá 5-10 manns", "Sjá 5–\u206010 manns"],
+    ["(5-10)", "(5–\u206010)"],
   ])("still converts the range in %p", (input, expected) => {
     expect(show(typeset(input, { dashes: true }))).toBe(expected);
   });
@@ -370,7 +370,7 @@ describe("rule 8: dashes (opt-in)", () => {
 
   test("a phone number and a kennitala keep their hyphen with the numbers rule off", () => {
     for (const input of ["Sími 555-1234", "Kt. 010190-2939"]) {
-      expect(typeset(input, { dashes: true, numbers: false })).not.toContain("–");
+      expect(typeset(input, { dashes: true, numbers: false })).not.toContain("–\u2060");
     }
   });
 
@@ -380,7 +380,7 @@ describe("rule 8: dashes (opt-in)", () => {
     for (const input of ["Sími 555-1234", "Kennitala 010101-2939"]) {
       expect(typeset(input, { dashes: true, numbers: false })).toBe(input);
       expect(typeset(input, { dashes: true })).toBe(input.replace("-", "\u2011"));
-      expect(typeset(input, { dashes: true })).not.toContain("–");
+      expect(typeset(input, { dashes: true })).not.toContain("–\u2060");
     }
   });
 
@@ -441,7 +441,7 @@ describe("numbers: kennitala and phone numbers stay on one line", () => {
 
   test("a range still becomes an en dash when dashes is on", () => {
     expect(typeset("Árin 1990-2000 og sími 555-1234", { dashes: true })).toBe(
-      `Árin 1990–2000 og sími 555${NBH}1234`
+      `Árin 1990–\u20602000 og sími 555${NBH}1234`
     );
   });
 });
@@ -549,7 +549,7 @@ describe("options", () => {
 
   test("the typographic preset turns every opt-in rule on", () => {
     expect(show(typeset(text, { preset: "typographic" }))).toBe(
-      "Hann fór á~„fund“ 1990–2000 og kom~heim."
+      "Hann fór á~„fund“ 1990–\u20602000 og kom~heim."
     );
   });
 
@@ -642,7 +642,7 @@ describe("URL protection", () => {
 
   test("leaves a bare domain without a path untouched and quotes around it", () => {
     expect(typeset('Sjá "geirolafs.com" og 1990-2000.', { dashes: true })).toBe(
-      "Sjá „geirolafs.com“ og 1990–2000."
+      "Sjá „geirolafs.com“ og 1990–\u20602000."
     );
   });
 
@@ -664,7 +664,7 @@ describe("URL protection", () => {
 
   test("still typesets text around a bare-domain URL", () => {
     expect(typeset("Árin 1990-2000 á example.is/1990-2000 nú", { dashes: true })).toBe(
-      "Árin 1990–2000 á example.is/1990-2000 nú"
+      "Árin 1990–\u20602000 á example.is/1990-2000 nú"
     );
   });
 });
@@ -780,9 +780,9 @@ describe("more rules", () => {
 
 describe("more dashes", () => {
   test.each([
-    ["kl. 14.30-16.00", "kl.~14.30–16.00"],
-    ["18.-21. ágúst", "18.–21.~ágúst"],
-    ["15. mars-14. apríl", "15.~mars–14.~apríl"],
+    ["kl. 14.30-16.00", "kl.~14.30–\u206016.00"],
+    ["18.-21. ágúst", "18.–\u206021.~ágúst"],
+    ["15. mars-14. apríl", "15.~mars–\u206014.~apríl"],
     ["„komdu“ - og", "„komdu“~– og"],
     ["orð – næsta", "orð~– næsta"],
   ])("%p becomes %p", (input, expected) => {
@@ -791,5 +791,37 @@ describe("more dashes", () => {
 
   test.each(["v1.2-3", "COVID-19", "Hún fór - 5 - 3"])("leaves %p alone", input => {
     expect(typeset(input, { dashes: true })).toBe(input);
+  });
+});
+
+describe("ranges stay on one line", () => {
+  test("a word joiner follows the dash of a range, once", () => {
+    const once = typeset("Árin 1990-2010 og kl. 14.30-16.00", { dashes: true });
+    expect(once).toBe("Árin 1990–⁠2010 og kl. 14.30–⁠16.00");
+    expect(typeset(once, { dashes: true })).toBe(once);
+  });
+
+  test("a typed en dash in a range is joined too, a spaced one is not", () => {
+    expect(typeset("1990–2010 og orð – orð", { dashes: true })).toBe(
+      "1990–⁠2010 og orð – orð"
+    );
+  });
+
+  test("the joiner lands in the right segment", () => {
+    expect(typesetSegments(["Árin 1990-", "2010"], { dashes: true })).toEqual([
+      "Árin 1990–⁠",
+      "2010",
+    ]);
+  });
+
+  test("nothing is inserted without dashes, or inside a URL", () => {
+    expect(typeset("1990–2010")).toBe("1990–2010");
+    expect(typeset("Sjá example.is/1990–2010", { dashes: true })).toBe(
+      "Sjá example.is/1990–2010"
+    );
+  });
+
+  test("a day stays with its month in any case", () => {
+    expect(typeset("Fundurinn 12. Des. 2026")).toBe("Fundurinn 12. Des. 2026");
   });
 });

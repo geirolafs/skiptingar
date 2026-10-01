@@ -1,15 +1,22 @@
 /**
- * Icelandic typographic fixes that only swap one character for another, so
- * the length of the text never changes:
+ * Icelandic typographic fixes that swap one character for another:
  *   space -> no-break space (U+00A0), quote -> quote, hyphen -> en dash.
  * That is what lets `typesetSegments` join the segments, apply the rules
  * across their borders and cut the result back at the original offsets.
+ * The one addition: with `dashes`, a word joiner (U+2060) goes after the en
+ * dash of a range, so `1990–2010` never breaks after the dash. It is
+ * inserted after the cut, at its offset, the way soft hyphens are.
  *
  * Typeset normalises each segment to NFC first, so a decomposed "á"
  * (a + U+0301) is read as one letter. The segments it returns keep the NFC
  * length.
  */
-import { NO_BREAK_SPACE, NON_BREAKING_HYPHEN } from "./characters";
+import {
+  insertAcrossSegments,
+  NO_BREAK_SPACE,
+  NON_BREAKING_HYPHEN,
+  WORD_JOINER,
+} from "./characters";
 import { findProtectedMask, isProtected, type Mask } from "./url";
 
 export type TypesetOptions = {
@@ -26,13 +33,17 @@ export type TypesetOptions = {
   lastWords?: boolean;
   /**
    * En dashes in number ranges (`1990–2000`, `kl. 14.30–16.00`, `18.–21.`,
-   * `mars–14. apríl`) and spaced hyphens, and a no-break space before a spaced
-   * dash so a line never starts with one. Default false.
+   * `mars–14. apríl`) and spaced hyphens, a word joiner after a range's dash so
+   * the range stays on one line, and a no-break space before a spaced dash so
+   * a line never starts with one. Default false.
    */
   dashes?: boolean;
   /** No-break space between a number and its unit: `1.000 kr.`, `5 km`. Default true. */
   units?: boolean;
-  /** No-break space between a month and the year after it: `sept. 2027`. Default true. */
+  /**
+   * No-break space between a month and the year after it (`sept. 2027`), and
+   * between a day and its month in any case (`12. Des.`). Default true.
+   */
   dates?: boolean;
   /** No-break space after an ordinal before a lowercase word: `1. sæti`. Default true. */
   ordinals?: boolean;
@@ -181,6 +192,11 @@ const NUMBER_UNIT = /* @__PURE__ */ new RegExp(
 const ORDINAL = /* @__PURE__ */ new RegExp(
   `(?<![\\p{L}\\p{N}])\\d{1,3}\\.${SP}(?=\\p{Ll})`,
   "gu"
+);
+// A day before its month, in any case: "12. Des." (ORDINAL needs lowercase).
+const DAY_MONTH = /* @__PURE__ */ new RegExp(
+  `(?<![\\p{L}\\p{N}])\\d{1,2}\\.${SP}(?=(?:${alternation(MONTHS)})(?![\\p{L}]))`,
+  "giu"
 );
 const MONTH_YEAR = /* @__PURE__ */ new RegExp(
   `(?<![\\p{L}\\p{N}])(?:${alternation(MONTHS)})${SP}(?=\\d{4}(?!\\d))`,
@@ -461,6 +477,7 @@ function typesetText(text: string, options: ResolvedOptions): string {
     [options.prefixes, NUMBER_PREFIX],
     [options.ordinals, ORDINAL],
     [options.dates, MONTH_YEAR],
+    [options.dates, DAY_MONTH],
     [options.prefixes, SPACED_ABBREVIATION],
     [options.titles, TITLE],
     [options.titles, INITIAL],
@@ -499,17 +516,37 @@ export function typesetSegments(
 ): string[] {
   const normalised = segments.map(segment => segment.normalize("NFC"));
   const joined = normalised.join("");
-  const result = typesetText(joined, resolveOptions(options));
+  const resolved = resolveOptions(options);
+  const result = typesetText(joined, resolved);
   if (result.length !== joined.length) {
     throw new Error("typeset changed the text length, which segments cannot map back");
   }
 
   let offset = 0;
-  return normalised.map(segment => {
+  const parts = normalised.map(segment => {
     const part = result.slice(offset, offset + segment.length);
     offset += segment.length;
     return part;
   });
+  return resolved.dashes
+    ? insertAcrossSegments(parts, rangeJoins(result), WORD_JOINER)
+    : parts;
+}
+
+// An en dash with something other than a space on both sides, not already
+// followed by a word joiner: the dash of a range.
+const RANGE_DASH = /* @__PURE__ */ new RegExp(`(?<=\\S)–(?=[^\\s${WORD_JOINER}])`, "gu");
+
+/** The offsets just after each range dash, where a word joiner keeps the range whole. */
+function rangeJoins(text: string): number[] {
+  const mask = findProtectedMask(text);
+  const offsets: number[] = [];
+  for (const match of text.matchAll(RANGE_DASH)) {
+    if (!isProtected(mask, match.index, match.index + 1)) {
+      offsets.push(match.index + 1);
+    }
+  }
+  return offsets;
 }
 
 /** Typesets one string. Same as `typesetSegments([text])[0]`. */
