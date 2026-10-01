@@ -11,6 +11,18 @@ export {
 } from "./hyphenate";
 export type { ProcessOptions } from "./process";
 export { processSegments, resolveTypeset } from "./process";
+export type { Hang, MeasuredLine, RagOptions } from "./rag";
+export {
+  applyRag,
+  breakOpportunities,
+  DEFAULT_RAG_OPTIONS,
+  forbidBreaks,
+  isShortWord,
+  lineCost,
+  ragCost,
+  SHORT_WORDS,
+  shortWordSpaces,
+} from "./rag";
 export type { TypesetOptions } from "./typeset";
 export {
   NUMBER_PREFIXES,
