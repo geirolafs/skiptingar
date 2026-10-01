@@ -176,6 +176,24 @@ describe("applyRag", () => {
   });
 });
 
+describe("applyRag with a hang's letter spacing", () => {
+  test("keeps it, and moves the hang past a removed soft hyphen", () => {
+    const text = `fram${SHY}kvæmd og dómur.`;
+    const result = applyRag(
+      text,
+      [4, 13],
+      [{ index: 19, width: 3, letterSpacing: -1.5 }]
+    );
+    expect(result.hangs).toEqual([{ index: 18, width: 3, letterSpacing: -1.5 }]);
+  });
+
+  test("a hang without it gets none", () => {
+    const [hang] = applyRag("aaa bbb.", [], [{ index: 7, width: 2 }]).hangs;
+    expect(hang).toEqual({ index: 7, width: 2 });
+    expect(hang && "letterSpacing" in hang).toBe(false);
+  });
+});
+
 describe("applyRag with tightened lines", () => {
   test("moves each tightened line past a removed soft hyphen", () => {
     const text = `fram${SHY}kvæmd og dómur er góður.`;

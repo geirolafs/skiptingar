@@ -90,8 +90,14 @@ export function breakOpportunities(text: string): number[] {
 /**
  * A line end that goes past the edge: the index of the line's last
  * character, and how far it overhangs, in px.
+ *
+ * `letterSpacing` is the CSS `letter-spacing` to set on it, in px, the
+ * element's own spacing included: a span's spacing replaces the one it
+ * inherits, so a tracked heading sets the hang from its own tracking, not
+ * from zero. When absent, it is `-width`. `bestBreaks` leaves it out;
+ * `settleRag` fills it in.
  */
-export type Hang = { index: number; width: number };
+export type Hang = { index: number; width: number; letterSpacing?: number };
 
 /**
  * A line that sets tighter than its natural width: the index of its first
@@ -129,7 +135,7 @@ export function applyRag(
   };
   return {
     text: forbidBreaks(text, forbidden),
-    hangs: hangs.map(hang => ({ index: shift(hang.index), width: hang.width })),
+    hangs: hangs.map(hang => ({ ...hang, index: shift(hang.index) })),
     tightened: tightened.map(line => ({
       ...line,
       start: shift(line.start),
@@ -138,13 +144,22 @@ export function applyRag(
   };
 }
 
-/** One piece of settled text: plain, or an overhanging line end (`hang` in px). */
-export type HangPiece = { start: number; text: string; hang?: number };
+/**
+ * One piece of settled text: plain, or an overhanging line end (`hang` in px).
+ * A hang piece carries its `letterSpacing` (see `Hang`) when the plan has one.
+ */
+export type HangPiece = {
+  start: number;
+  text: string;
+  hang?: number;
+  letterSpacing?: number;
+};
 
 /**
  * Settled text cut where it is drawn differently: plain runs, and each
  * overhanging character on its own (an emoji whole), to be wrapped in an
- * element with `letter-spacing: -{hang}px`. Empty runs are left out.
+ * element with `letter-spacing: {letterSpacing ?? -hang}px`. Empty runs are
+ * left out.
  */
 export function splitHangs(text: string, hangs: readonly Hang[]): HangPiece[] {
   return splitSettled(text, hangs);
@@ -152,14 +167,15 @@ export function splitHangs(text: string, hangs: readonly Hang[]): HangPiece[] {
 
 /**
  * One piece of settled text: plain, an overhanging line end (`hang` in px), or
- * a tightened line (`wordSpacing` and `letterSpacing` in px, negative).
+ * a tightened line (`wordSpacing` and `letterSpacing` in px, negative). On a
+ * hang piece, `letterSpacing` is the hang's own (`Hang.letterSpacing`).
  */
 export type SettledPiece = HangPiece & { wordSpacing?: number; letterSpacing?: number };
 
 /**
  * Settled text cut where it is drawn differently: plain runs, each
  * overhanging character on its own (an emoji whole), to be wrapped in an
- * element with `letter-spacing: -{hang}px`, and each tightened line whole, to
+ * element with `letter-spacing: {letterSpacing ?? -hang}px`, and each tightened line whole, to
  * be wrapped in an element with its `word-spacing` and `letter-spacing`. A
  * line uses one cheat or the other, so the pieces never overlap. Empty runs
  * are left out.
@@ -177,6 +193,9 @@ export function splitSettled(
         end: hang.index + character.length,
         text: character,
         hang: hang.width,
+        ...(hang.letterSpacing === undefined
+          ? {}
+          : { letterSpacing: hang.letterSpacing }),
       };
     }),
     ...tightened

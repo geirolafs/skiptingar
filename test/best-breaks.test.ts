@@ -349,6 +349,51 @@ describe("splitHangs", () => {
   });
 });
 
+describe("a hang's letter spacing", () => {
+  const hangs = [
+    { index: 2, width: 3, letterSpacing: -2.5 },
+    { index: 8, width: 4 },
+  ];
+
+  test("splitHangs puts it on the hang piece", () => {
+    expect(splitHangs("abc def 😀", hangs)).toEqual([
+      { start: 0, text: "ab" },
+      { start: 2, text: "c", hang: 3, letterSpacing: -2.5 },
+      { start: 3, text: " def " },
+      { start: 8, text: "😀", hang: 4 },
+    ]);
+  });
+
+  test("splitSettled keeps it next to a tightened line", () => {
+    const tightened = { start: 4, end: 7, wordSpacing: -1, letterSpacing: -0.5 };
+    expect(splitSettled("abc def 😀", hangs, [tightened])).toEqual([
+      { start: 0, text: "ab" },
+      { start: 2, text: "c", hang: 3, letterSpacing: -2.5 },
+      { start: 3, text: " " },
+      { start: 4, text: "def", wordSpacing: -1, letterSpacing: -0.5 },
+      { start: 7, text: " " },
+      { start: 8, text: "😀", hang: 4 },
+    ]);
+  });
+
+  test("a hang without it has no letterSpacing key", () => {
+    const piece = splitHangs("abc", [{ index: 2, width: 3 }]).find(
+      entry => entry.hang !== undefined
+    );
+    expect(piece).toEqual({ start: 2, text: "c", hang: 3 });
+    expect(piece && "letterSpacing" in piece).toBe(false);
+  });
+
+  test("bestBreaks leaves it out", () => {
+    const text = "aaaa bbbb cccc dddd";
+    const plan = bestBreaks(text, monospace(text, 90, 8));
+    expect(plan?.hangs.length).toBeGreaterThan(0);
+    for (const hang of plan?.hangs ?? []) {
+      expect("letterSpacing" in hang).toBe(false);
+    }
+  });
+});
+
 describe("splitSettled", () => {
   test("cuts hangs and tightened lines out of plain runs", () => {
     const tightened = { wordSpacing: -2, letterSpacing: 0 };

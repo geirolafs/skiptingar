@@ -218,7 +218,7 @@ function Caption({ text }: { text: string }) {
 Use this for text that only exists in the browser, like something a user
 types. The patterns load lazily the first time, <!-- size:patterns -->48.9 kB<!-- /size --> brotli for the core
 and its patterns; the full client entry is <!-- size:client -->7.5 kB<!-- /size --> brotli,
-and Settle rag alone (`SettledText`) <!-- size:rag -->5.3 kB<!-- /size -->. Until then the
+and Settle rag alone (`SettledText`) <!-- size:rag -->5.4 kB<!-- /size -->. Until then the
 hook returns the text as it is, and so does it if the chunk fails to load. The
 next component that mounts tries the load again. A component that mounts after
 the load gets the processed text on its first render. Anything you can do on
@@ -266,6 +266,11 @@ by default. The rest are the weights of each fault (`DEFAULT_RAG_OPTIONS`).
   `splitHangs` does it for overhangs alone), and
   `useRagPlan(ref, text, options)` the plan itself, for text split over
   several elements (`applyRag`). Pass `enabled: false` to turn it off.
+- A span's `letter-spacing` replaces the one it inherits, so each overhang
+  carries the value to set, the element's own tracking included
+  (`Hang.letterSpacing`, and `letterSpacing` on its piece from `splitSettled`).
+  Draw a hang with `piece.letterSpacing ?? -piece.hang` px. Without it, as from
+  `bestBreaks`, that is `-hang`.
 - Without React: `const stop = settle(element, text, options)`.
 - `bestBreaks(text, metrics, options)` in the core is the search alone, given
   where each character starts; it needs no browser.

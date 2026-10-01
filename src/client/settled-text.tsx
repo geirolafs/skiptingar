@@ -39,7 +39,10 @@ export function SettledText<T extends ElementType = "p">({
     <Element ref={ref as RefObject<never>} {...props}>
       {splitSettled(settled.text, settled.hangs, settled.tightened).map(piece =>
         piece.hang !== undefined ? (
-          <span key={piece.start} style={{ letterSpacing: -piece.hang }}>
+          <span
+            key={piece.start}
+            style={{ letterSpacing: piece.letterSpacing ?? -piece.hang }}
+          >
             {piece.text}
           </span>
         ) : piece.wordSpacing !== undefined ? (

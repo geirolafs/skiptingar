@@ -23,6 +23,11 @@ The first version meant for npm. The API may still change before 1.0.
   has too few spaces, letter space) to keep a word on it, as a typesetter does
   by hand. It never loosens, and a line uses it or the overhang, not both.
   `splitSettled()` cuts the settled text for drawing.
+- An overhang keeps the element's own `letter-spacing`: `Hang` has an optional
+  `letterSpacing` (px, the element's spacing included), which `settleRag` sets
+  and `applyRag`, `splitSettled` and `splitHangs` pass on. A tracked heading's
+  overhang line no longer sets wider than planned. Without it, a hang is drawn
+  with `-width` as before.
 - `bestBreaks()`: the rag search alone, without a browser.
 - `handleSkiptingarRequest()` and `configureSkiptingar({ endpoint })`: hyphenate
   browser text on your server, so the patterns never download.

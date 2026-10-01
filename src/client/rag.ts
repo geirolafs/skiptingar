@@ -113,7 +113,7 @@ function fill(
     const node = document.createTextNode(piece.text);
     if (piece.hang !== undefined) {
       const span = document.createElement("span");
-      span.style.letterSpacing = `${-piece.hang}px`;
+      span.style.letterSpacing = `${piece.letterSpacing ?? -piece.hang}px`;
       span.append(node);
       element.append(span);
     } else if (piece.wordSpacing !== undefined) {
@@ -302,14 +302,19 @@ export function settleRag(
     if (!found) {
       return NO_CHANGE;
     }
-    // The search gives how much each tightened line shrinks. A span's
-    // spacing replaces the spacing it inherits, which the measurement
-    // included, so the element's own spacing is added back: a heading set
-    // with negative tracking tightens from that tracking, not from zero.
+    // The search gives how much each tightened line shrinks and how far each
+    // line end hangs. A span's spacing replaces the spacing it inherits,
+    // which the measurement included, so the element's own spacing is added
+    // back: a heading set with tracking tightens and hangs from that
+    // tracking, not from zero.
     const baseWord = spacingOf(style.wordSpacing);
     const baseLetter = spacingOf(style.letterSpacing);
     const plan = {
       ...found,
+      hangs: found.hangs.map(hang => ({
+        ...hang,
+        letterSpacing: baseLetter - hang.width,
+      })),
       tightened: found.tightened.map(line => ({
         ...line,
         wordSpacing: baseWord + line.wordSpacing,

@@ -14,7 +14,7 @@ type Settled = { text: string; plan: RagPlan };
 
 function samePlan(a: RagPlan, b: RagPlan): boolean {
   const hangs = (plan: RagPlan) =>
-    plan.hangs.map(hang => `${hang.index}:${hang.width}`).join();
+    plan.hangs.map(hang => `${hang.index}:${hang.width}:${hang.letterSpacing}`).join();
   const tightened = (plan: RagPlan) =>
     plan.tightened
       .map(line => `${line.start}:${line.end}:${line.wordSpacing}:${line.letterSpacing}`)

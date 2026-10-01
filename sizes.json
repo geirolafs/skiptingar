@@ -1,6 +1,6 @@
 {
   "rag": {
-    "brotli": 5.3,
+    "brotli": 5.4,
     "gzip": 5.9
   },
   "endpoint": {
