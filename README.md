@@ -217,7 +217,8 @@ function Caption({ text }: { text: string }) {
 
 Use this for text that only exists in the browser, like something a user
 types. The patterns load lazily the first time, about 47 kB brotli (53 kB
-gzip); the rest of the client entry is about 5.5 kB brotli. Until then the
+gzip); the full client entry is about 5.5 kB brotli, and Settle rag alone
+(`SettledText`) about 4.3 kB. Until then the
 hook returns the text as it is, and so does it if the chunk fails to load. The
 next component that mounts tries the load again. A component that mounts after
 the load gets the processed text on its first render. Anything you can do on
