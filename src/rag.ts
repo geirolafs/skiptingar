@@ -182,6 +182,8 @@ export type MeasuredLine = {
   width: number;
   hangingShortWord?: boolean;
   hyphen?: { before: number; after: number };
+  /** The hyphen is at a compound's joint: right after a linking syllable (`stjórnar-`). */
+  joint?: boolean;
 };
 
 export type RagOptions = {
@@ -237,6 +239,17 @@ export type RagOptions = {
   /** What a hyphen costs on top when the line above also ends in one. */
   ladderWeight?: number;
   /**
+   * In a title (`balance`): what a hyphen costs when it is not at a
+   * compound's joint, such as `kosn-ingum` or `Hrafna-fjarðar…`, so one is
+   * used only when it saves a line. A joint is a break right after a linking
+   * syllable (`sveitar-`, `stjórnar-`, `Akur-`).
+   */
+  titleNonJointWeight?: number;
+  /** In a title: what a short word at a line's end costs, instead of `shortWordWeight`. */
+  titleShortWordWeight?: number;
+  /** In a title: what a hyphen costs on top when the line above ends in one, instead of `ladderWeight`. */
+  titleLadderWeight?: number;
+  /**
    * How far a line's last character may go past the edge, the cheat a
    * typesetter makes by hand: in em at 16px text, about one letter at 0.5.
    * Bigger type gets a smaller share of its size (see `overhangAllowance` in
@@ -258,6 +271,9 @@ export const DEFAULT_RAG_OPTIONS: Readonly<Required<RagOptions>> = Object.freeze
   shortPieceWeight: 0.25,
   shortPiece: 3,
   ladderWeight: 0.02,
+  titleNonJointWeight: 0.3,
+  titleShortWordWeight: 0.3,
+  titleLadderWeight: 0.3,
   overhang: 0,
 });
 
@@ -400,6 +416,8 @@ type Opportunity = {
 };
 
 const DASHES = new Set(["-", "–", "—"]);
+/** The syllables that link a compound's parts; a break right after one is a joint. */
+const LINKING_SYLLABLE = /^(?:ar|ur|is|ir)$/iu;
 const DIGIT = /\p{Nd}/u;
 const WORD_SEPARATOR = /[  ]/;
 const LETTER = /\p{L}/u;
@@ -544,7 +562,7 @@ export function bestBreaks(
   const startX = new Float64Array(count);
   const endX = new Float64Array(count);
   const allowed = new Float64Array(count);
-  const endings: Pick<MeasuredLine, "hangingShortWord" | "hyphen">[] = [];
+  const endings: Pick<MeasuredLine, "hangingShortWord" | "hyphen" | "joint">[] = [];
   for (let k = 0; k < count; k += 1) {
     const { at: index, end, next } = at(k);
     const hyphenHere = isHyphen(k);
@@ -560,6 +578,8 @@ export function bestBreaks(
     endings.push({
       hangingShortWord: shortWords.has(index),
       hyphen: hyphenHere ? pieces(text, index) : undefined,
+      joint:
+        hyphenHere && LINKING_SYLLABLE.test(text.slice(Math.max(0, index - 2), index)),
     });
   }
 
@@ -583,6 +603,7 @@ export function bestBreaks(
       width: Math.min(set(from, to), measure),
       hangingShortWord: ending?.hangingShortWord,
       hyphen: ending?.hyphen,
+      joint: ending?.joint,
     };
   };
   // A title pays for each line instead of for the gaps at its end.
@@ -597,7 +618,19 @@ export function bestBreaks(
       return cost;
     }
     const gap = Math.max(0, measure - current.width) / measure;
-    return cost - gap * gap + TITLE_LINE_COST;
+    let title = cost - gap * gap + TITLE_LINE_COST;
+    // A title weighs a short word at a line's end, a hyphen ladder and a
+    // break away from a joint more than body text does.
+    if (current.hangingShortWord) {
+      title += weights.titleShortWordWeight - weights.shortWordWeight;
+    }
+    if (current.hyphen && previous?.hyphen) {
+      title += weights.titleLadderWeight - weights.ladderWeight;
+    }
+    if (current.hyphen && !current.joint) {
+      title += weights.titleNonJointWeight;
+    }
+    return title;
   };
   // Every weight resolved once, so `lineCost` finds each without a fallback.
   const weights: Required<RagOptions> = { ...DEFAULT_RAG_OPTIONS };

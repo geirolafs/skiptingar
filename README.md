@@ -49,6 +49,7 @@ typeset('Verð 1.000 kr. frá 30. september, sagði "hann"');
 | -------------------------------------- | --------------- | ----------------------------------------------------------------------------- |
 | `mode`                                 | `"body"`        | `"heading"` only breaks long words, and at compound joints when it finds them |
 | `rules`                                | `"typographic"` | `"ritreglur"` allows every break the patterns allow, including `ó-lán`        |
+| `joints`                               | `"only"`        | heading mode: `"prefer"` also keeps other breaks, for Settle rag to weigh     |
 | `minWordLength`, `leftMin`, `rightMin` | from the preset | override one number, keep the rest                                            |
 | `hyphenChar`                           | `"­"`           | use `"-"` to see the breaks                                                   |
 | `exceptions`                           | `true`          | uses the exception list and the joints; `false` gives raw patterns            |
@@ -246,7 +247,9 @@ copy; if the browser would not set it exactly, it changes nothing. It judges
 again when the width changes and when fonts load, and keeps the element on
 `text-wrap: wrap` meanwhile, since `pretty` and `balance` would move the breaks
 again. Options (`RagOptions`): `balance: true` for titles (as few lines as
-possible, made even), `overhang` (in em at 16px, 0.5 is about one letter) lets
+possible, made even, with short words at line ends, stacked hyphens and breaks
+away from a joint costing more; pair it with `hyphenate(…, { mode: "heading",
+joints: "prefer" })` so it has the breaks to choose from), `overhang` (in em at 16px, 0.5 is about one letter) lets
 a line's last character go a little past the edge when that helps, and the
 weights of each fault (`DEFAULT_RAG_OPTIONS`).
 

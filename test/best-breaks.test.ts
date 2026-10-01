@@ -196,3 +196,19 @@ describe("a joined range", () => {
     expect(plan?.ends.map(end => text.slice(end.after))).not.toContain("2010 bbbb");
   });
 });
+
+describe("titles prefer joints and keep short words off line ends", () => {
+  const SHY = "­";
+  test("a title breaks at the joint when a non-joint break would set as well", () => {
+    const text = `Kjörsókn í Hrafna${SHY}fjarðar${SHY}byggð aldrei meiri`;
+    const plan = bestBreaks(text, monospace(text, 255), { balance: true });
+    const firstEnd = plan?.ends[0]?.after ?? 0;
+    expect(text.slice(firstEnd)).toStartWith("byggð");
+  });
+
+  test("a title moves a short word down when it costs no line", () => {
+    const text = "Kjörsókn í Hrafnafjarðarbyggð";
+    const plan = bestBreaks(text, monospace(text, 205), { balance: true });
+    expect(text.slice(plan?.ends[0]?.after ?? 0)).toStartWith("í ");
+  });
+});

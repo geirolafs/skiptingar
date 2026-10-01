@@ -7,6 +7,14 @@ import { findProtectedMask, isProtected } from "./url";
 export type HyphenateOptions = {
   /** "body" for running text, "heading" for large type. Default "body". */
   mode?: "body" | "heading";
+  /**
+   * Heading mode only. "only" (the default) breaks a word at its compound
+   * joints alone, when one fits, which suits a heading the browser sets by
+   * itself. "prefer" keeps the other breaks too, for a heading that Settle
+   * rag balances: it weighs a break away from a joint as a cost and takes one
+   * only when that saves a line.
+   */
+  joints?: "only" | "prefer";
   /** "typographic" is conservative, "ritreglur" follows the spelling rules. */
   rules?: "typographic" | "ritreglur";
   /** Words shorter than this many letters are left alone. Overrides the preset. */
@@ -303,7 +311,8 @@ export function hyphenateWord(word: string, options: HyphenateOptions = {}): num
   // In heading mode a joint that fits the limits replaces the other breaks. A
   // word whose joints all fall too near an end (`Aðalsteins·son`) keeps its
   // other breaks instead of losing every one. In body mode joints change nothing.
-  const joints = heading ? found.joints.filter(found.fits) : [];
+  const joints =
+    heading && options.joints !== "prefer" ? found.joints.filter(found.fits) : [];
   return joints.length > 0 ? joints : found.breaks.filter(found.fits);
 }
 

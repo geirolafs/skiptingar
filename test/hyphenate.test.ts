@@ -662,3 +662,14 @@ describe("foreign names", () => {
     );
   });
 });
+
+describe("heading joints as a preference", () => {
+  test('"prefer" keeps the other typographic breaks, "only" the joints', () => {
+    expect(show(hyphenate("Hrafnafjarðarbyggð", { mode: "heading" }))).toBe(
+      "Hrafnafjarðar-byggð"
+    );
+    expect(
+      show(hyphenate("Hrafnafjarðarbyggð", { mode: "heading", joints: "prefer" }))
+    ).toBe("Hrafna-fjarðar-byggð");
+  });
+});
