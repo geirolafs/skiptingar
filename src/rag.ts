@@ -94,14 +94,29 @@ export function breakOpportunities(text: string): number[] {
 export type Hang = { index: number; width: number };
 
 /**
- * The text with its breaks forbidden (`forbidBreaks`), and the hangs moved
- * to their place in it: removing a soft hyphen shifts every index after it.
+ * A line that sets tighter than its natural width: the index of its first
+ * character, one past its last (the break space or soft hyphen after it is not
+ * inside), and the spacing to give it in px, as negative numbers ready for CSS
+ * (`word-spacing` on each word space, `letter-spacing` on each character).
+ */
+export type Tightened = {
+  start: number;
+  end: number;
+  wordSpacing: number;
+  letterSpacing: number;
+};
+
+/**
+ * The text with its breaks forbidden (`forbidBreaks`), and the hangs and
+ * tightened lines moved to their place in it: removing a soft hyphen shifts
+ * every index after it.
  */
 export function applyRag(
   text: string,
   forbidden: readonly number[],
-  hangs: readonly Hang[] = []
-): { text: string; hangs: Hang[] } {
+  hangs: readonly Hang[] = [],
+  tightened: readonly Tightened[] = []
+): { text: string; hangs: Hang[]; tightened: Tightened[] } {
   const removed = new Set(forbidden.filter(index => text[index] === SOFT_HYPHEN));
   const shift = (index: number) => {
     let count = 0;
@@ -115,6 +130,11 @@ export function applyRag(
   return {
     text: forbidBreaks(text, forbidden),
     hangs: hangs.map(hang => ({ index: shift(hang.index), width: hang.width })),
+    tightened: tightened.map(line => ({
+      ...line,
+      start: shift(line.start),
+      end: shift(line.end),
+    })),
   };
 }
 
@@ -127,15 +147,56 @@ export type HangPiece = { start: number; text: string; hang?: number };
  * element with `letter-spacing: -{hang}px`. Empty runs are left out.
  */
 export function splitHangs(text: string, hangs: readonly Hang[]): HangPiece[] {
-  const pieces: HangPiece[] = [];
+  return splitSettled(text, hangs);
+}
+
+/**
+ * One piece of settled text: plain, an overhanging line end (`hang` in px), or
+ * a tightened line (`wordSpacing` and `letterSpacing` in px, negative).
+ */
+export type SettledPiece = HangPiece & { wordSpacing?: number; letterSpacing?: number };
+
+/**
+ * Settled text cut where it is drawn differently: plain runs, each
+ * overhanging character on its own (an emoji whole), to be wrapped in an
+ * element with `letter-spacing: -{hang}px`, and each tightened line whole, to
+ * be wrapped in an element with its `word-spacing` and `letter-spacing`. A
+ * line uses one cheat or the other, so the pieces never overlap. Empty runs
+ * are left out.
+ */
+export function splitSettled(
+  text: string,
+  hangs: readonly Hang[],
+  tightened: readonly Tightened[] = []
+): SettledPiece[] {
+  const cuts: (SettledPiece & { end: number })[] = [
+    ...hangs.map(hang => {
+      const character = hangCharacter(text, hang.index);
+      return {
+        start: hang.index,
+        end: hang.index + character.length,
+        text: character,
+        hang: hang.width,
+      };
+    }),
+    ...tightened
+      .filter(line => line.end > line.start)
+      .map(line => ({
+        start: line.start,
+        end: line.end,
+        text: text.slice(line.start, line.end),
+        wordSpacing: line.wordSpacing,
+        letterSpacing: line.letterSpacing,
+      })),
+  ].sort((a, b) => a.start - b.start);
+  const pieces: SettledPiece[] = [];
   let from = 0;
-  for (const hang of hangs) {
-    const character = hangCharacter(text, hang.index);
-    if (hang.index > from) {
-      pieces.push({ start: from, text: text.slice(from, hang.index) });
+  for (const { end, ...cut } of cuts) {
+    if (cut.start > from) {
+      pieces.push({ start: from, text: text.slice(from, cut.start) });
     }
-    pieces.push({ start: hang.index, text: character, hang: hang.width });
-    from = hang.index + character.length;
+    pieces.push(cut);
+    from = end;
   }
   if (from < text.length || pieces.length === 0) {
     pieces.push({ start: from, text: text.slice(from) });
@@ -184,6 +245,8 @@ export type MeasuredLine = {
   hyphen?: { before: number; after: number };
   /** The hyphen is at a compound's joint: right after a linking syllable (`stjórnar-`). */
   joint?: boolean;
+  /** The line is tightened: the share of its tightening allowance it uses, 0 to 1 (`tightenWeight`). */
+  tightened?: number;
 };
 
 export type RagOptions = {
@@ -258,6 +321,29 @@ export type RagOptions = {
    * fit otherwise and the whole paragraph is better for it.
    */
   overhang?: number;
+  /**
+   * The most each word space on a line may shrink, in em: the second cheat a
+   * typesetter makes by hand, to keep a word on its line. It only tightens,
+   * never loosens: in a ragged edge a looser line pulls nothing up. A line
+   * uses it only when it would not fit otherwise (not even overhanging) and
+   * the whole paragraph is better for it, and never together with the
+   * overhang. 0 turns it off. The client entry converts em to px at the
+   * element's font size.
+   */
+  tighten?: number;
+  /**
+   * The most each character may shrink, in em, on a line that has too few word
+   * spaces for `tighten` to make it fit. Used only after the word spaces are
+   * at their limit, so it should be smaller. 0 turns it off.
+   */
+  tightenLetters?: number;
+  /**
+   * What tightening costs. A line pays this times the square of the share of
+   * its full allowance (every word space and, if allowed, every character at
+   * the limit) it uses. The default makes a fully tightened line cost about as
+   * much as a short word at a line's end (`shortWordWeight`).
+   */
+  tightenWeight?: number;
 };
 
 export const DEFAULT_RAG_OPTIONS: Readonly<Required<RagOptions>> = Object.freeze({
@@ -275,6 +361,9 @@ export const DEFAULT_RAG_OPTIONS: Readonly<Required<RagOptions>> = Object.freeze
   titleShortWordWeight: 0.3,
   titleLadderWeight: 0.3,
   overhang: 0,
+  tighten: 0,
+  tightenLetters: 0,
+  tightenWeight: 0.05,
 });
 
 /** The options that are numbers: the weights and sizes. */
@@ -319,6 +408,9 @@ export function lineCost(
       cost += weight("ladderWeight");
     }
   }
+  if (line.tightened) {
+    cost += weight("tightenWeight") * line.tightened * line.tightened;
+  }
   return cost;
 }
 
@@ -337,6 +429,8 @@ export function lineCost(
  * - Hyphens: each line ending in one adds `hyphenWeight`; more if it leaves a
  *   short piece on either side (`shortPieceWeight`), and more if the line
  *   above ends in one too (`ladderWeight`).
+ * - Tightening: a tightened line adds `tightenWeight` times the square of the
+ *   share of its allowance it uses.
  *
  * A line wider than the measure (a word that does not fit) costs far more
  * than any of these. The last line counts for none of them: it is meant to
@@ -377,15 +471,27 @@ const TITLE_LINE_COST = 1;
 const SLACK = 0.75;
 
 /**
+ * How much more than the bare minimum a tightened line shrinks, in px, when
+ * its room allows. A tightened line would otherwise end exactly at the edge
+ * of the slack, where a fraction of a pixel (kerning lost at an element
+ * boundary, a mark drawn inside the line) wraps it.
+ */
+const TIGHTEN_MARGIN = 1;
+
+/**
  * Where each character of the text starts along one unbroken line (`x`, one
  * more entry than the text has characters), the width of the hyphen drawn at
  * a soft-hyphen break, the measure, and how far a line may overhang, all in px.
+ * `tightenWord` and `tightenLetter` are how much a word space and a character
+ * may shrink in px, for the second cheat (`tighten`); left out, they are 0.
  */
 export type Metrics = {
   x: Float64Array;
   hyphen: number;
   measure: number;
   overhang: number;
+  tightenWord?: number;
+  tightenLetter?: number;
 };
 
 /**
@@ -393,10 +499,12 @@ export type Metrics = {
  * browser sets them, the line ends that overhang, every break between two
  * lines (the index of the last character before it and the first after it),
  * how many lines there are, and what the layout costs (lower is better).
+ * `tightened` lists the lines that set tighter than their natural width.
  */
 export type BreakPlan = {
   forbidden: number[];
   hangs: Hang[];
+  tightened: Tightened[];
   ends: { before: number; after: number }[];
   lines: number;
   cost: number;
@@ -541,6 +649,9 @@ export function bestBreaks(
   options: RagOptions = {}
 ): BreakPlan | null {
   const { x, hyphen, measure, overhang } = metrics;
+  const tightenWord = Math.max(0, metrics.tightenWord ?? 0);
+  const tightenLetter = Math.max(0, metrics.tightenLetter ?? 0);
+  const tightening = tightenWord > 0 || tightenLetter > 0;
   const shortWords = new Set(shortWordSpaces(text));
   // The paragraph's start, every opportunity, its end.
   const breaks: Opportunity[] = [
@@ -583,27 +694,76 @@ export function bestBreaks(
     });
   }
 
+  // How many word spaces (CSS `word-spacing` moves a no-break space too) and
+  // drawn characters (no soft hyphen, an emoji once) the text has before each
+  // index, so a line's share of each is a subtraction.
+  const spaceCount = new Uint32Array(text.length + 1);
+  const letterCount = new Uint32Array(text.length + 1);
+  if (tightening) {
+    for (let index = 0; index < text.length; index += 1) {
+      const character = text[index] ?? "";
+      const low = text.charCodeAt(index);
+      spaceCount[index + 1] =
+        (spaceCount[index] ?? 0) +
+        (character === " " || character === NO_BREAK_SPACE ? 1 : 0);
+      letterCount[index + 1] =
+        (letterCount[index] ?? 0) +
+        (character === SOFT_HYPHEN || (low >= 0xdc00 && low <= 0xdfff) ? 0 : 1);
+    }
+  }
+  // A line from `from` to `to` has the word spaces and characters inside its
+  // text, not the break space or soft hyphen after it.
+  const spacesIn = (from: number, to: number) =>
+    Math.max(0, (spaceCount[at(to).end] ?? 0) - (spaceCount[at(from).next] ?? 0));
+  const lettersIn = (from: number, to: number) =>
+    Math.max(0, (letterCount[at(to).end] ?? 0) - (letterCount[at(from).next] ?? 0));
+  // The most the line can shrink: every word space and every character at its limit.
+  const room = (from: number, to: number) =>
+    tightening
+      ? spacesIn(from, to) * tightenWord + lettersIn(from, to) * tightenLetter
+      : 0;
+
   const width = (from: number, to: number) => (endX[to] ?? 0) - (startX[from] ?? 0);
   const allowance = (to: number) => allowed[to] ?? 0;
-  // How far the line actually goes past the edge, if it does and may: the
-  // cheat is a last resort, for a line that would not fit otherwise.
+  // How far the line is past the edge, if it can be made to fit: the cheat is
+  // a last resort, for a line that would not fit otherwise. The overhang is
+  // preferred, since it is invisible; tightening is used only when the line is
+  // too wide for it. A line uses one or the other, never both.
   const over = (from: number, to: number) => {
     const past = width(from, to) - (measure - SLACK);
     return past > 0 && past <= allowance(to) ? past : 0;
   };
-  // How wide the line sets: a line that overhangs sets at the measure.
-  const set = (from: number, to: number) => width(from, to) - over(from, to);
+  const shrink = (from: number, to: number) => {
+    if (!tightening) {
+      return 0;
+    }
+    const past = width(from, to) - (measure - SLACK);
+    const most = room(from, to);
+    if (past <= allowance(to) || past > most) {
+      return 0;
+    }
+    // The margin stays in word space when word space alone is enough, so it
+    // never brings in letter space.
+    const words = spacesIn(from, to) * tightenWord;
+    return Math.min(past <= words ? words : most, past + TIGHTEN_MARGIN);
+  };
+  const cheat = (from: number, to: number) => over(from, to) || shrink(from, to);
+  // How wide the line sets: a line that cheats sets at the measure.
+  const set = (from: number, to: number) =>
+    cheat(from, to) > 0 ? measure - SLACK : width(from, to);
   const fits = (from: number, to: number) => set(from, to) <= measure - SLACK;
-  // Past this, no line ending here can fit, even overhanging.
+  // Past this, no line ending here can fit, even cheating.
   const beyond = (from: number, to: number) =>
-    width(from, to) - overhang > measure - SLACK;
+    width(from, to) - Math.max(overhang, room(from, to)) > measure - SLACK;
   const line = (from: number, to: number): MeasuredLine => {
     const ending = endings[to];
+    const shrunk = shrink(from, to);
     return {
       width: Math.min(set(from, to), measure),
       hangingShortWord: ending?.hangingShortWord,
       hyphen: ending?.hyphen,
       joint: ending?.joint,
+      tightened: shrunk > 0 ? shrunk / room(from, to) : undefined,
     };
   };
   // A title pays for each line instead of for the gaps at its end.
@@ -642,7 +802,7 @@ export function bestBreaks(
   // A line from `from` that ends at `to` can be reproduced: no dash break
   // after `to` still fits on it, since that break could not be forbidden.
   const reproducible = (from: number, to: number) => {
-    const past = over(from, to);
+    const past = cheat(from, to);
     for (let later = to + 1; later < last; later += 1) {
       if (width(from, later) - past > measure + SLACK) {
         return true;
@@ -668,7 +828,7 @@ export function bestBreaks(
     return ends;
   };
   const overflowCost = (from: number, to: number) =>
-    width(from, to) - over(from, to) > measure + SLACK ? OVERFLOW_COST : 0;
+    set(from, to) > measure + SLACK ? OVERFLOW_COST : 0;
 
   // The cheapest state per (start of the line before, start of the last line),
   // grouped by where the last line ends.
@@ -694,19 +854,19 @@ export function bestBreaks(
     const following = nextEnds(end).map(next => ({
       next,
       line: line(end, next),
-      over: over(end, next),
+      cheat: cheat(end, next),
       overflow: overflowCost(end, next),
     }));
     for (const state of cheapest(states)) {
       const previous = state.before >= 0 ? line(state.before, state.start) : undefined;
       const current = line(state.start, end);
-      const overCurrent = over(state.start, end);
+      const cheatCurrent = cheat(state.start, end);
       const k = key(state.start, end);
       for (const after of following) {
         // The browser breaks here only if this line and the next do not fit
-        // together. Both lines' overhangs keep their negative spacing in a
-        // merged line, so they shorten it there too.
-        const merged = width(state.start, after.next) - overCurrent - after.over;
+        // together. Both lines' overhangs and tightening keep their negative
+        // spacing in a merged line, so they shorten it there too.
+        const merged = width(state.start, after.next) - cheatCurrent - after.cheat;
         if (merged <= measure + SLACK) {
           continue;
         }
@@ -730,10 +890,11 @@ export function bestBreaks(
   // The last line: one word alone, or the tail of a hyphenated word. In a
   // title it is a line like the others, and its step from the line above counts.
   const lastLineCost = (state: State) => {
+    const share = line(state.start, last).tightened ?? 0;
+    let cost = weights.tightenWeight * share * share;
     if (state.lines < 2) {
-      return 0;
+      return cost;
     }
-    let cost = 0;
     if (balance) {
       const step =
         (line(state.start, last).width - line(state.before, state.start).width) / measure;
@@ -762,14 +923,30 @@ export function bestBreaks(
   }
 
   // For every line but the last: the places after its end that would still
-  // fit on it. And every line that overhangs, the last one too.
+  // fit on it. And every line that overhangs or is tightened, the last one too.
   const forbidden: number[] = [];
   const hung: Hang[] = [];
+  const tightened: Tightened[] = [];
   const ends: { before: number; after: number }[] = [];
   for (let state: State | null = best; state; state = state.from) {
-    const past = over(state.start, state.end);
-    if (past > 0) {
-      hung.push({ index: lastCharacterStart(text, at(state.end).end), width: past });
+    const past = cheat(state.start, state.end);
+    const hang = over(state.start, state.end);
+    if (hang > 0) {
+      hung.push({ index: lastCharacterStart(text, at(state.end).end), width: hang });
+    } else if (past > 0) {
+      // Word spaces first, each by the same amount; only when they are at
+      // their limit does the rest go over the characters.
+      const spaces = spacesIn(state.start, state.end);
+      const wordShare = spaces * tightenWord;
+      const letters = lettersIn(state.start, state.end);
+      tightened.push({
+        start: at(state.start).next,
+        end: at(state.end).end,
+        wordSpacing: past <= wordShare ? -(past / spaces) : spaces > 0 ? -tightenWord : 0,
+        // Never past the limit, which float error could nudge it over.
+        letterSpacing:
+          past <= wordShare ? 0 : -Math.min(tightenLetter, (past - wordShare) / letters),
+      });
     }
     if (state === best) {
       continue;
@@ -785,6 +962,7 @@ export function bestBreaks(
   return {
     forbidden: forbidden.sort((a, b) => a - b),
     hangs: hung.sort((a, b) => a.index - b.index),
+    tightened: tightened.sort((a, b) => a.start - b.start),
     ends: ends.sort((a, b) => a.after - b.after),
     lines: best.lines,
     cost: bestCost,

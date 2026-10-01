@@ -176,6 +176,35 @@ describe("applyRag", () => {
   });
 });
 
+describe("applyRag with tightened lines", () => {
+  test("moves each tightened line past a removed soft hyphen", () => {
+    const text = `fram${SHY}kvæmd og dómur er góður.`;
+    // The line from "og" to "góður" sets tighter; the soft hyphen before it goes.
+    const start = text.indexOf("og");
+    const end = text.indexOf("góður") + "góður".length;
+    const line = { start, end, wordSpacing: -1.5, letterSpacing: 0 };
+    const result = applyRag(text, [4], [], [line]);
+    expect(result.tightened).toEqual([{ ...line, start: start - 1, end: end - 1 }]);
+    expect(result.text.slice(start - 1, end - 1)).toBe("og dómur er góður");
+  });
+
+  test("a soft hyphen inside the line shortens it, one after it does not", () => {
+    const text = `aaaa bb${SHY}cc dd${SHY}ee ff`;
+    const line = {
+      start: 0,
+      end: text.indexOf("dd"),
+      wordSpacing: -1,
+      letterSpacing: -0.5,
+    };
+    const result = applyRag(text, [text.indexOf(SHY), text.lastIndexOf(SHY)], [], [line]);
+    expect(result.tightened).toEqual([{ ...line, end: line.end - 1 }]);
+  });
+
+  test("leaves them out when none are given", () => {
+    expect(applyRag("aaa bbb", []).tightened).toEqual([]);
+  });
+});
+
 describe("overhangAllowance", () => {
   test("is the allowance in em at 16px", () => {
     expect(overhangAllowance(0.5, 16)).toBeCloseTo(8);

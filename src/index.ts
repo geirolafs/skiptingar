@@ -14,13 +14,22 @@ export {
 } from "./hyphenate";
 export type { ProcessOptions } from "./process";
 export { processSegments, resolveTypeset } from "./process";
-export type { BreakPlan, Hang, HangPiece, Metrics, RagOptions } from "./rag";
+export type {
+  BreakPlan,
+  Hang,
+  HangPiece,
+  Metrics,
+  RagOptions,
+  SettledPiece,
+  Tightened,
+} from "./rag";
 export {
   applyRag,
   bestBreaks,
   DEFAULT_RAG_OPTIONS,
   SHORT_WORDS,
   splitHangs,
+  splitSettled,
 } from "./rag";
 export type { HandlerLimits, RemoteItem, RemoteOptions, RemoteResult } from "./server";
 export { handleSkiptingarRequest, runRemoteItems } from "./server";

@@ -2,7 +2,7 @@
 
 import type { ComponentPropsWithoutRef, ElementType, RefObject } from "react";
 import { Fragment, useRef } from "react";
-import { splitHangs } from "../rag";
+import { splitSettled } from "../rag";
 import { type SettleOptions, useSettledRag } from "./use-rag";
 
 type SettledTextProps<T extends ElementType> = {
@@ -15,9 +15,11 @@ type SettledTextProps<T extends ElementType> = {
 } & Omit<ComponentPropsWithoutRef<T>, "children">;
 
 /**
- * Text with its rag settled (`useSettledRag`) and its overhangs drawn: each
- * overhanging character in a span with a negative `letter-spacing` of the
- * overhang, so the line fits and the character's end sits past the edge.
+ * Text with its rag settled (`useSettledRag`) and its overhangs and tightened
+ * lines drawn: each overhanging character in a span with a negative
+ * `letter-spacing` of the overhang, so the line fits and the character's end
+ * sits past the edge, and each tightened line in a span with a negative
+ * `word-spacing` (and `letter-spacing`), so it takes less space.
  * On the server and before the first judgement it is the text as given.
  *
  * ```tsx
@@ -35,13 +37,23 @@ export function SettledText<T extends ElementType = "p">({
   const settled = useSettledRag(ref, text, options);
   return (
     <Element ref={ref as RefObject<never>} {...props}>
-      {splitHangs(settled.text, settled.hangs).map(piece =>
-        piece.hang === undefined ? (
-          <Fragment key={piece.start}>{piece.text}</Fragment>
-        ) : (
+      {splitSettled(settled.text, settled.hangs, settled.tightened).map(piece =>
+        piece.hang !== undefined ? (
           <span key={piece.start} style={{ letterSpacing: -piece.hang }}>
             {piece.text}
           </span>
+        ) : piece.wordSpacing !== undefined ? (
+          <span
+            key={piece.start}
+            style={{
+              wordSpacing: piece.wordSpacing,
+              letterSpacing: piece.letterSpacing || undefined,
+            }}
+          >
+            {piece.text}
+          </span>
+        ) : (
+          <Fragment key={piece.start}>{piece.text}</Fragment>
         )
       )}
     </Element>

@@ -216,9 +216,9 @@ function Caption({ text }: { text: string }) {
 ```
 
 Use this for text that only exists in the browser, like something a user
-types. The patterns load lazily the first time, <!-- size:patterns -->51.1 kB<!-- /size --> brotli for the core
-and its patterns; the full client entry is <!-- size:client -->6.6 kB<!-- /size --> brotli,
-and Settle rag alone (`SettledText`) <!-- size:rag -->4.2 kB<!-- /size -->. Until then the
+types. The patterns load lazily the first time, <!-- size:patterns -->48.9 kB<!-- /size --> brotli for the core
+and its patterns; the full client entry is <!-- size:client -->7.5 kB<!-- /size --> brotli,
+and Settle rag alone (`SettledText`) <!-- size:rag -->5.3 kB<!-- /size -->. Until then the
 hook returns the text as it is, and so does it if the chunk fails to load. The
 next component that mounts tries the load again. A component that mounts after
 the load gets the processed text on its first render. Anything you can do on
@@ -251,11 +251,19 @@ again. Options (`RagOptions`): `balance: true` for titles (as few lines as
 possible, made even, with short words at line ends, stacked hyphens and breaks
 away from a joint costing more; pair it with `hyphenate(…, { mode: "heading",
 joints: "prefer" })` so it has the breaks to choose from), `overhang` (in em at 16px, 0.5 is about one letter) lets
-a line's last character go a little past the edge when that helps, and the
-weights of each fault (`DEFAULT_RAG_OPTIONS`).
+a line's last character go a little past the edge when that helps, `tighten`
+(in em, 0.05 is a good size) lets a line take that much less space at each
+word space, and `tightenLetters` (in em, 0.01) that much less at each
+character on a line with too few spaces for that, and `tightenWeight` is what
+tightening costs. Tightening is the typesetter's second cheat: it only
+tightens, never loosens, and a line uses it only when it would not fit
+otherwise and the paragraph is better for it. A line uses the overhang or
+tightening, never both, and the overhang comes first. All three are 0 (off)
+by default. The rest are the weights of each fault (`DEFAULT_RAG_OPTIONS`).
 
-- `SettledText` renders it. `useSettledRag(ref, text, options)` gives the text
-  and its overhangs (`splitHangs` cuts them out to draw), and
+- `SettledText` renders it. `useSettledRag(ref, text, options)` gives the text,
+  its overhangs and its tightened lines (`splitSettled` cuts them out to draw;
+  `splitHangs` does it for overhangs alone), and
   `useRagPlan(ref, text, options)` the plan itself, for text split over
   several elements (`applyRag`). Pass `enabled: false` to turn it off.
 - Without React: `const stop = settle(element, text, options)`.
@@ -270,7 +278,7 @@ server-rendered paragraph can move slightly once.
 
 #### Hyphenate browser text on your server
 
-The hyphenation core and its patterns are <!-- size:patterns -->51.1 kB<!-- /size --> brotli. A page
+The hyphenation core and its patterns are <!-- size:patterns -->48.9 kB<!-- /size --> brotli. A page
 that has a server can skip them:
 mount the handler on a POST route and point the client at it once.
 

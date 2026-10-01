@@ -3,7 +3,7 @@
 import type { RefObject } from "react";
 import { useLayoutEffect, useState } from "react";
 import { flushSync } from "react-dom";
-import { applyRag, type Hang, type RagOptions } from "../rag";
+import { applyRag, type Hang, type RagOptions, type Tightened } from "../rag";
 import { optionsKey } from "./options";
 import { NO_CHANGE, type RagPlan, watchRag } from "./rag";
 
@@ -15,13 +15,21 @@ type Settled = { text: string; plan: RagPlan };
 function samePlan(a: RagPlan, b: RagPlan): boolean {
   const hangs = (plan: RagPlan) =>
     plan.hangs.map(hang => `${hang.index}:${hang.width}`).join();
-  return a.forbidden.join() === b.forbidden.join() && hangs(a) === hangs(b);
+  const tightened = (plan: RagPlan) =>
+    plan.tightened
+      .map(line => `${line.start}:${line.end}:${line.wordSpacing}:${line.letterSpacing}`)
+      .join();
+  return (
+    a.forbidden.join() === b.forbidden.join() &&
+    hangs(a) === hangs(b) &&
+    tightened(a) === tightened(b)
+  );
 }
 
 /**
  * The rag plan for the element in `ref` (`settleRag`): the breaks a
- * typesetter would move, as indices into `text`, and the line ends that
- * overhang the edge. For a caller that applies it itself, such as text split
+ * typesetter would move, as indices into `text`, the line ends that overhang
+ * the edge and the lines that set tighter. For a caller that applies it itself, such as text split
  * over several elements (`applyRag`); `useSettledRag` applies it to one
  * string, and `SettledText` draws it too.
  *
@@ -78,16 +86,18 @@ export function useRagPlan(
 /**
  * `text` with its rag settled for the element in `ref`: the breaks a
  * typesetter would move are forbidden, so a short word at a line's end or a
- * word that leaves a hole goes down to the next line, and `hangs` lists the
- * line ends that overhang the edge. Draw it with `SettledText`, or draw each
- * hang (`splitHangs`) as a span with a negative `letter-spacing` of its
- * width. See `useRagPlan`.
+ * word that leaves a hole goes down to the next line, `hangs` lists the
+ * line ends that overhang the edge and `tightened` the lines that take a
+ * little less space between words. Draw it with `SettledText`, or cut it
+ * (`splitSettled`) and draw each hang as a span with a negative
+ * `letter-spacing` of its width and each tightened line as a span with its
+ * `word-spacing` and `letter-spacing`. See `useRagPlan`.
  */
 export function useSettledRag(
   ref: RefObject<HTMLElement | null>,
   text: string,
   options: SettleOptions = {}
-): { text: string; hangs: Hang[] } {
+): { text: string; hangs: Hang[]; tightened: Tightened[] } {
   const plan = useRagPlan(ref, text, options);
-  return applyRag(text, plan.forbidden, plan.hangs);
+  return applyRag(text, plan.forbidden, plan.hangs, plan.tightened);
 }

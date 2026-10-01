@@ -5,7 +5,10 @@ export {
   type Hang,
   type HangPiece,
   type RagOptions,
+  type SettledPiece,
   splitHangs,
+  splitSettled,
+  type Tightened,
 } from "../rag";
 export { cleanCopiedPlainText, cleanCopiedText } from "./clean";
 export { CleanCopy } from "./clean-copy";

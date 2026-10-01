@@ -7,7 +7,8 @@ import {
   type Hang,
   type Metrics,
   type RagOptions,
-  splitHangs,
+  splitSettled,
+  type Tightened,
 } from "../rag";
 
 type Measured = { key: string; x: Float64Array; hyphen: number };
@@ -91,45 +92,62 @@ export function overhangAllowance(overhang: number, fontSize: number): number {
 }
 
 /**
- * Puts `text` in `element` with each overhang drawn the way the page draws
- * it: the line's last character in a span with a negative `letter-spacing`
- * of the overhang. That shrinks the character's advance, which the line
- * breaker counts, while the glyph still draws in full past the edge. (A
- * negative end margin would draw the same, but Chrome does not count it
- * when it decides whether the line fits.) Returns each text node with the
- * index its text starts at.
+ * Puts `text` in `element` with each overhang and tightened line drawn the
+ * way the page draws them. An overhang is the line's last character in a span
+ * with a negative `letter-spacing` of the overhang. That shrinks the
+ * character's advance, which the line breaker counts, while the glyph still
+ * draws in full past the edge. (A negative end margin would draw the same, but
+ * Chrome does not count it when it decides whether the line fits.) A
+ * tightened line is its text in a span with a negative `word-spacing`, and a
+ * negative `letter-spacing` when the line needed it. Returns each text node
+ * with the index its text starts at.
  */
 function fill(
   element: HTMLElement,
   text: string,
-  hangs: readonly Hang[]
+  hangs: readonly Hang[],
+  tightened: readonly Tightened[]
 ): { node: Text; start: number }[] {
   element.textContent = "";
-  return splitHangs(text, hangs).map(piece => {
+  return splitSettled(text, hangs, tightened).map(piece => {
     const node = document.createTextNode(piece.text);
-    if (piece.hang === undefined) {
-      element.append(node);
-    } else {
+    if (piece.hang !== undefined) {
       const span = document.createElement("span");
       span.style.letterSpacing = `${-piece.hang}px`;
       span.append(node);
       element.append(span);
+    } else if (piece.wordSpacing !== undefined) {
+      const span = document.createElement("span");
+      span.style.wordSpacing = `${piece.wordSpacing}px`;
+      if (piece.letterSpacing) {
+        span.style.letterSpacing = `${piece.letterSpacing}px`;
+      }
+      span.append(node);
+      element.append(span);
+    } else {
+      element.append(node);
     }
     return { node, start: piece.start };
   });
 }
 
 /**
- * True when the copy, filled with `text` and its hangs, breaks every line
- * exactly where the plan says: at each planned break, the characters on its
- * two sides sit on different lines, and there are no more lines than planned.
+ * True when the copy, filled with `text` and its hangs and tightened lines,
+ * breaks every line exactly where the plan says: at each planned break, the
+ * characters on its two sides sit on different lines, and there are no more
+ * lines than planned.
  */
 function setsAsPlanned(
   copy: HTMLElement,
   text: string,
-  { hangs, ends, lines }: Pick<BreakPlan, "hangs" | "ends" | "lines">
+  {
+    hangs,
+    tightened,
+    ends,
+    lines,
+  }: Pick<BreakPlan, "hangs" | "tightened" | "ends" | "lines">
 ): boolean {
-  const nodes = fill(copy, text, hangs);
+  const nodes = fill(copy, text, hangs, tightened);
   const topAt = (index: number): number | null => {
     let found: { node: Text; start: number } | undefined;
     for (const entry of nodes) {
@@ -169,11 +187,25 @@ function setsAsPlanned(
   return tops.size === lines;
 }
 
-/** What `settleRag` decides: the breaks to forbid, and the line ends that overhang. */
-export type RagPlan = { forbidden: number[]; hangs: Hang[] };
+/** A computed `word-spacing` or `letter-spacing` in px: `normal` is 0. */
+function spacingOf(value: string): number {
+  const px = Number.parseFloat(value);
+  return Number.isFinite(px) ? px : 0;
+}
+
+/**
+ * What `settleRag` decides: the breaks to forbid, the line ends that overhang,
+ * and the lines that set tighter. A tightened line's spacing is the CSS value
+ * to set, the element's own spacing included.
+ */
+export type RagPlan = { forbidden: number[]; hangs: Hang[]; tightened: Tightened[] };
 
 /** A plan that changes nothing. */
-export const NO_CHANGE: RagPlan = Object.freeze({ forbidden: [], hangs: [] }) as RagPlan;
+export const NO_CHANGE: RagPlan = Object.freeze({
+  forbidden: [],
+  hangs: [],
+  tightened: [],
+}) as RagPlan;
 
 /**
  * Layouts the plan cannot model: justified text, right to left, an indented
@@ -193,10 +225,13 @@ function unsupported(style: CSSStyleDeclaration): boolean {
  * Settles the rag of `element` the way a typesetter would: it finds the best
  * line breaks for the whole paragraph (`bestBreaks`) and returns the break
  * opportunities to forbid so the browser sets exactly those, and the line
- * ends that may go a little past the edge where that helps (`overhang`).
+ * ends that may go a little past the edge where that helps (`overhang`), and
+ * the lines that may take a little less space between words (`tighten`).
  * Apply them with `applyRag`, in an element that wraps greedily (`text-wrap:
  * wrap`; `useRagPlan` sets that), drawing each overhang as a span around the
- * line's last character with a negative `letter-spacing` of the overhang.
+ * line's last character with a negative `letter-spacing` of the overhang, and
+ * each tightened line as a span with its negative `word-spacing` (and
+ * `letter-spacing`).
  *
  * It measures a hidden copy of the element with the same classes and width,
  * so the page never shows a trial, and checks the plan there: if the browser
@@ -245,6 +280,9 @@ export function settleRag(
       Number.parseFloat(style.paddingRight);
     const fontSize = Number.parseFloat(style.fontSize);
     const overhang = overhangAllowance(options.overhang ?? 0, fontSize);
+    // Em of the element's own size, whatever the size: no shrinking with it.
+    const tightenWord = Math.max(0, options.tighten ?? 0) * fontSize;
+    const tightenLetter = Math.max(0, options.tightenLetters ?? 0) * fontSize;
     const key = `${fontKey(style)}|${text}`;
     let known = measurements.get(element);
     if (known?.key !== key) {
@@ -252,17 +290,40 @@ export function settleRag(
       known = { key, x: measured.x, hyphen: measured.hyphen };
       measurements.set(element, known);
     }
-    const metrics: Metrics = { x: known.x, hyphen: known.hyphen, measure, overhang };
-    const plan = bestBreaks(text, metrics, options);
-    if (!plan) {
+    const metrics: Metrics = {
+      x: known.x,
+      hyphen: known.hyphen,
+      measure,
+      overhang,
+      tightenWord,
+      tightenLetter,
+    };
+    const found = bestBreaks(text, metrics, options);
+    if (!found) {
       return NO_CHANGE;
     }
+    // The search gives how much each tightened line shrinks. A span's
+    // spacing replaces the spacing it inherits, which the measurement
+    // included, so the element's own spacing is added back: a heading set
+    // with negative tracking tightens from that tracking, not from zero.
+    const baseWord = spacingOf(style.wordSpacing);
+    const baseLetter = spacingOf(style.letterSpacing);
+    const plan = {
+      ...found,
+      tightened: found.tightened.map(line => ({
+        ...line,
+        wordSpacing: baseWord + line.wordSpacing,
+        letterSpacing: line.letterSpacing === 0 ? 0 : baseLetter + line.letterSpacing,
+      })),
+    };
     const planned = setsAsPlanned(
       copy,
       forbidBreaks(text, plan.forbidden, { keepLength: true }),
       plan
     );
-    return planned ? { forbidden: plan.forbidden, hangs: plan.hangs } : NO_CHANGE;
+    return planned
+      ? { forbidden: plan.forbidden, hangs: plan.hangs, tightened: plan.tightened }
+      : NO_CHANGE;
   } finally {
     copy.remove();
   }
@@ -327,7 +388,7 @@ export function watchRag(
 /**
  * Settles the rag of a plain DOM element, for pages without React: puts
  * `text` in `element` with the breaks a typesetter would choose and its
- * overhangs drawn, and keeps it settled as the width and fonts change.
+ * overhangs and tightened lines drawn, and keeps it settled as the width and fonts change.
  * `text` is the element's text, hyphenated with soft hyphens. Returns a
  * function that stops and puts `text` back as it was.
  *
@@ -341,8 +402,8 @@ export function settle(
   options: RagOptions = {}
 ): () => void {
   const stop = watchRag(element, text, options, plan => {
-    const settled = applyRag(text, plan.forbidden, plan.hangs);
-    fill(element, settled.text, settled.hangs);
+    const settled = applyRag(text, plan.forbidden, plan.hangs, plan.tightened);
+    fill(element, settled.text, settled.hangs, settled.tightened);
   });
   return () => {
     stop();
