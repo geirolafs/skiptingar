@@ -8,9 +8,9 @@ data/hyph_is.dic
   Licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/),
   provided without warranty.
   Source: https://github.com/icelandic-lt/hyphenation-is
-  Modified: the three header lines (UTF-8, LEFTHYPHENMIN, RIGHTHYPHENMIN) were
-  removed, and the pattern lines are compiled unchanged into
-  src/generated/data.ts.
+  data/hyph_is.dic is the upstream file, unmodified. src/generated/data.ts
+  holds its pattern lines unchanged but sorted, without the three header lines
+  (UTF-8, LEFTHYPHENMIN, RIGHTHYPHENMIN).
 
 data/exceptions.txt
   Hand-written exception list. Dedicated to the public domain under CC0 1.0.
