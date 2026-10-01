@@ -21,11 +21,13 @@ Hann sagði „Verð 1.000⍽kr. frá 30.⍽september“
 
 ## Status
 
-Not on npm yet. It lives in a website repo while the API settles. You can
-copy the folder, but there is no `package.json` yet, so the `skiptingar/react`
-and `skiptingar/client` paths below need path aliases (or import
-`src/react` and `src/client` directly). It has no runtime dependencies. React
-is only needed for the React and client entry points.
+Not on npm yet. It lives in a website repo while the API settles; the
+`package.json` is marked private so it can't be published by accident. To
+try it in another project, build it (`bun run build` in this folder writes
+`dist/` with the three entry points and their types) and depend on the
+folder. It has no runtime dependencies. React is only needed for the React
+and client entry points. `bun run size` prints what each entry costs a
+browser, and `bun run bench` how fast the core runs.
 
 ## Three layers
 
@@ -210,7 +212,7 @@ function Caption({ text }: { text: string }) {
 
 Use this for text that only exists in the browser, like something a user
 types. The patterns load lazily the first time, about 55 kB brotli (74 kB
-gzip); the rest of the client entry is about 4.5 kB brotli. Until then the
+gzip); the rest of the client entry is about 5.5 kB brotli. Until then the
 hook returns the text as it is, and so does it if the chunk fails to load. The
 next component that mounts tries the load again. A component that mounts after
 the load gets the processed text on its first render. Anything you can do on

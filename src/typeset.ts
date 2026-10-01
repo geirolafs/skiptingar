@@ -173,40 +173,46 @@ function titleAlternation(): string {
   }).join("|");
 }
 
-const NUMBER_UNIT = new RegExp(
+const NUMBER_UNIT = /* @__PURE__ */ new RegExp(
   `(?<![\\p{L}\\p{N}])\\d+(?:\\.\\d{3})*(?:,\\d+)?${SP}(?:${alternation(NUMBER_UNITS)})(?![\\p{L}\\p{N}])`,
   "gu"
 );
 // At most 3 digits: "árið 1990. en" ends a clause, it is not an ordinal.
-const ORDINAL = new RegExp(`(?<![\\p{L}\\p{N}])\\d{1,3}\\.${SP}(?=\\p{Ll})`, "gu");
-const MONTH_YEAR = new RegExp(
+const ORDINAL = /* @__PURE__ */ new RegExp(
+  `(?<![\\p{L}\\p{N}])\\d{1,3}\\.${SP}(?=\\p{Ll})`,
+  "gu"
+);
+const MONTH_YEAR = /* @__PURE__ */ new RegExp(
   `(?<![\\p{L}\\p{N}])(?:${alternation(MONTHS)})${SP}(?=\\d{4}(?!\\d))`,
   "giu"
 );
 // Preceded by the start, whitespace, "(" or an opening quote mark.
-const NUMBER_PREFIX = new RegExp(
+const NUMBER_PREFIX = /* @__PURE__ */ new RegExp(
   `(?<![^\\s("'„‚‘“])(?:${alternation(NUMBER_PREFIXES)})${SP}(?=\\d)`,
   "giu"
 );
 // Older spaced forms such as "t. d." (see SPACED_ABBREVIATIONS).
-const SPACED_ABBREVIATION = new RegExp(
+const SPACED_ABBREVIATION = /* @__PURE__ */ new RegExp(
   `(?<![\\p{L}\\p{N}])(?:${[...SPACED_ABBREVIATIONS]
     .sort((a, b) => b.join(" ").length - a.join(" ").length)
     .map(parts => parts.map(escapeRegExp).join(SP))
     .join("|")})(?![\\p{L}\\p{N}])`,
   "giu"
 );
-const TITLE = new RegExp(
+const TITLE = /* @__PURE__ */ new RegExp(
   `(?<![\\p{L}\\p{N}])(?:${titleAlternation()})\\.${SP}(?=\\p{Lu})`,
   "gu"
 );
 // A capital initial with its full stop before a capitalised name: "Jón G. Sigurðsson".
-const INITIAL = new RegExp(
+const INITIAL = /* @__PURE__ */ new RegExp(
   `(?<![\\p{L}\\p{N}])\\p{Lu}\\.${SP}(?=\\p{Lu}[\\p{Ll}.])`,
   "gu"
 );
-const SINGLE_LETTER = new RegExp(`(?<![\\p{L}\\p{N}\\p{M}'’-])\\p{L}${SP}(?=\\S)`, "gu");
-const LAST_WORDS = new RegExp(
+const SINGLE_LETTER = /* @__PURE__ */ new RegExp(
+  `(?<![\\p{L}\\p{N}\\p{M}'’-])\\p{L}${SP}(?=\\S)`,
+  "gu"
+);
+const LAST_WORDS = /* @__PURE__ */ new RegExp(
   `(?<=\\S)${SP}(?=\\p{L}{1,10}[^\\p{L}\\p{N}\\s]*\\s*$)`,
   "gu"
 );
@@ -225,7 +231,7 @@ const PHONE_SHAPE_ALTERNATION = PHONE_SHAPES.map(
 ).join("|");
 // The characters just outside the number must not be a letter or a digit of any
 // script (\p{Nd}), so "a555-1234b" and fullwidth digits are left alone.
-const STANDALONE_NUMBER = new RegExp(
+const STANDALONE_NUMBER = /* @__PURE__ */ new RegExp(
   `(?<![\\p{L}\\p{Nd}.,+\\u2011-])(?<!\\p{Nd}[ \\u00A0\\u2011-])(?:\\+354${SP}\\d{3}${PHONE_SEPARATOR}?\\d{4}|${PHONE_SHAPE_ALTERNATION})(?![\\p{L}\\p{Nd}])(?!${PHONE_SEPARATOR}?\\p{Nd}|[.,]\\p{Nd})`,
   "gu"
 );
@@ -238,18 +244,18 @@ const TIME_RANGE =
   /(?<![\p{L}\p{N}.,-])\d{1,2}[.:]\d{2}-\d{1,2}[.:]\d{2}(?![\p{L}\p{N}-]|[.,]\p{N})/gu;
 const ORDINAL_RANGE = /(?<![\p{L}\p{N}.,-])\d{1,3}\.-\d{1,3}\.(?![\p{N}-])/gu;
 // A month before a day: "15. mars-14. apríl".
-const MONTH_RANGE = new RegExp(
+const MONTH_RANGE = /* @__PURE__ */ new RegExp(
   `(?<![\\p{L}\\p{N}])(?:${alternation(MONTHS)})-(?=\\d{1,2}\\.)`,
   "giu"
 );
 // A spaced hyphen between words. Before it may also be a closing mark or
 // punctuation ("„komdu“ - og"), after it an opening mark.
-const SPACED_HYPHEN = new RegExp(
+const SPACED_HYPHEN = /* @__PURE__ */ new RegExp(
   `(?<=[\\p{L}“‘”’)\\]!?.,…]${SP})-(?=${SP}[\\p{L}„‚(])`,
   "gu"
 );
 // The space before a spaced dash, typed or converted, so no line starts with it.
-const SPACE_BEFORE_DASH = new RegExp(`(?<=\\S) (?=[–—]${SP})`, "gu");
+const SPACE_BEFORE_DASH = /* @__PURE__ */ new RegExp(`(?<=\\S) (?=[–—]${SP})`, "gu");
 
 const OPENING_CONTEXT = /[\s([{—–\-„‚]/u;
 const LETTER = /\p{L}/u;

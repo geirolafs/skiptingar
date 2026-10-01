@@ -1,0 +1,63 @@
+{
+  "name": "skiptingar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Icelandic text set the way a typesetter would: hyphenation, a settled ragged edge, titles that break at their joints, and Icelandic typesetting rules.",
+  "license": "MIT AND CC-BY-4.0 AND CC0-1.0",
+  "author": "Geir Ólafsson",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "data/exceptions.txt",
+    "LICENSE",
+    "NOTICE",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "size": "bun run scripts/size.ts",
+    "bench": "bun run scripts/bench.ts"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "icelandic",
+    "hyphenation",
+    "typography",
+    "typesetting",
+    "rag",
+    "knuth-plass",
+    "íslenska",
+    "orðskipting"
+  ]
+}

@@ -55,7 +55,7 @@ describe("generated data", () => {
 
 function listTypeScriptFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
-    if (entry.name === "node_modules") {
+    if (entry.name === "node_modules" || entry.name === "dist") {
       return [];
     }
     const full = join(dir, entry.name);

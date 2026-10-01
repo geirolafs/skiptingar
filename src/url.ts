@@ -23,7 +23,7 @@ const HOST_START = "(?<![\\p{L}\\p{N}@._%+-])";
 /** Schemes written `scheme:rest` without slashes. */
 const OPAQUE_SCHEMES = "(?:mailto|tel|sms|callto|geo|urn|magnet|xmpp|skype)";
 
-const URL_PATTERN = new RegExp(
+const URL_PATTERN = /* @__PURE__ */ new RegExp(
   [
     // scheme://anything: http, https, ftp, file, ...
     "(?<![\\p{L}\\p{N}+.-])[a-z][a-z0-9+.-]*:\\/\\/\\S+",
