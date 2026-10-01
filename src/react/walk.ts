@@ -119,6 +119,38 @@ function isChildArray(node: ReactNode): node is readonly ReactNode[] {
   return Array.isArray(node);
 }
 
+/** Text, or an inline host element: what makes its siblings part of a line. */
+function isInlineNode(node: ReactNode): boolean {
+  if (typeof node === "string") {
+    return node.trim() !== "";
+  }
+  if (typeof node === "number") {
+    return true;
+  }
+  return (
+    isValidElement(node) && typeof node.type === "string" && INLINE_TAGS.has(node.type)
+  );
+}
+
+/**
+ * Whether a component (or a fragment) ends the run. A fragment never does. A
+ * component does unless `data-skiptingar="inline"` says otherwise or, without
+ * the attribute, it sits among text or inline elements.
+ */
+function isBlockComponent(
+  element: ReactElement<ElementProps>,
+  inlineSiblings: boolean
+): boolean {
+  if (element.type === Fragment) {
+    return false;
+  }
+  const mark = element.props["data-skiptingar"];
+  if (mark === "inline" || mark === "block") {
+    return mark === "block";
+  }
+  return !inlineSiblings;
+}
+
 /** Text segments grouped into runs. A run is text with no block boundary in it. */
 type Runs = { done: string[][]; current: string[] };
 
@@ -149,12 +181,20 @@ type Visitor = {
  * (a skipped subtree, or no children) is returned as the same object.
  *
  * A block host element ends the run before and after it, and so does a
- * skipped subtree. Components are transparent: their children join the
- * current run. Text in a foreign language is not given to the visitor, and
- * where the language changes the run ends, so Icelandic rules never work
- * across English text.
+ * skipped subtree. A component is inline when it shares its parent with text
+ * or an inline element (`"<Wrap>orð</Wrap>"`): its children join the run.
+ * Otherwise it ends the run like a block, so `<Card>…</Card><Card>…</Card>`
+ * are never read as one piece of text. `data-skiptingar="inline"` or
+ * `"block"` on the component decides it instead. Text in a foreign language
+ * is not given to the visitor, and where the language changes the run ends,
+ * so Icelandic rules never work across English text.
  */
-function walk(node: ReactNode, foreign: boolean, visitor: Visitor): ReactNode {
+function walk(
+  node: ReactNode,
+  foreign: boolean,
+  visitor: Visitor,
+  inlineSiblings = false
+): ReactNode {
   if (typeof node === "string") {
     return foreign ? node : visitor.text(node);
   }
@@ -167,7 +207,8 @@ function walk(node: ReactNode, foreign: boolean, visitor: Visitor): ReactNode {
     return after === before ? node : after;
   }
   if (isChildArray(node)) {
-    return node.map(child => walk(child, foreign, visitor));
+    const inline = inlineSiblings || node.some(isInlineNode);
+    return node.map(child => walk(child, foreign, visitor, inline));
   }
   if (!isValidElement<ElementProps>(node)) {
     return node;
@@ -179,15 +220,19 @@ function walk(node: ReactNode, foreign: boolean, visitor: Visitor): ReactNode {
   const isBoundary =
     foreignHere !== foreign ||
     isSkipped(node) ||
-    (typeof node.type === "string" && !INLINE_TAGS.has(node.type));
+    (typeof node.type === "string"
+      ? !INLINE_TAGS.has(node.type)
+      : isBlockComponent(node, inlineSiblings));
   if (isBoundary) {
     visitor.boundary();
   }
   const children = descendInto(node);
+  // Inside an inline element or an inline component the children are part of
+  // the same line, even a lone component child: `<em><Wrap>orð</Wrap></em>`.
   const result =
     children === undefined
       ? node
-      : visitor.element(node, walk(children, foreignHere, visitor));
+      : visitor.element(node, walk(children, foreignHere, visitor, !isBoundary));
   if (isBoundary) {
     visitor.boundary();
   }

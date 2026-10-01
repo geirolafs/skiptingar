@@ -331,7 +331,7 @@ describe("rule 7: last two words (opt-in)", () => {
 describe("rule 8: dashes (opt-in)", () => {
   test.each([
     ["Árin 1990-2000 voru góð", "Árin 1990–2000 voru góð"],
-    ["Reykjavík - Akureyri", "Reykjavík – Akureyri"],
+    ["Reykjavík - Akureyri", "Reykjavík\u00a0– Akureyri"],
   ])("converts %p", (input, expected) => {
     expect(typeset(input, { dashes: true })).toBe(expected);
   });
@@ -393,13 +393,13 @@ describe("numbers: kennitala and phone numbers stay on one line", () => {
   const NBH = "\u2011";
 
   test.each([
-    ["kt. 010190-2939", `kt. 010190${NBH}2939`],
+    ["kt. 010190-2939", `kt.${NB}010190${NBH}2939`],
     ["sími 555-1234", `sími 555${NBH}1234`],
     ["sími 555 1234", `sími 555${NB}1234`],
-    ["kt. 010190 2939", `kt. 010190${NB}2939`],
+    ["kt. 010190 2939", `kt.${NB}010190${NB}2939`],
     ["+354 555 1234", `+354${NB}555${NB}1234`],
     ["+354 555-1234", `+354${NB}555${NBH}1234`],
-    ["Kt. 010190-2939, sími 555-1234.", `Kt. 010190${NBH}2939, sími 555${NBH}1234.`],
+    ["Kt. 010190-2939, sími 555-1234.", `Kt.${NB}010190${NBH}2939, sími 555${NBH}1234.`],
   ])("binds %p", (input, expected) => {
     expect(typeset(input)).toBe(expected);
   });
@@ -749,5 +749,47 @@ describe("safety", () => {
     expect(typeset("")).toBe("");
     expect(typesetSegments([])).toEqual([]);
     expect(typesetSegments(["", ""], { preset: "typographic" })).toEqual(["", ""]);
+  });
+});
+
+describe("every rule can be turned off", () => {
+  test.each([
+    ["units", "Verð 1.000 kr."],
+    ["dates", "Lokað í sept. 2027"],
+    ["ordinals", "Hún lenti í 1. sæti"],
+    ["prefixes", "Sjá bls. 12"],
+    ["titles", "Spurðu dr. Jón"],
+  ] as const)("%s: false leaves %p as typed", (option, input) => {
+    expect(typeset(input)).not.toBe(input);
+    expect(typeset(input, { [option]: false })).toBe(input);
+  });
+});
+
+describe("more rules", () => {
+  test.each([
+    ["árið 1990. en svo", "árið 1990. en svo"],
+    ["Jón G. Sigurðsson", "Jón G.~Sigurðsson"],
+    ["J. K. Rowling", "J.~K.~Rowling"],
+    ["kt. 450190-2939", "kt.~450190‑2939"],
+    ["s. 555 1234", "s.~555~1234"],
+    ["10. ág. 2026 og febr. 2027", "10.~ág.~2026 og febr.~2027"],
+  ])("%p becomes %p", (input, expected) => {
+    expect(show(typeset(input)).replaceAll("‑", "‑")).toBe(expected);
+  });
+});
+
+describe("more dashes", () => {
+  test.each([
+    ["kl. 14.30-16.00", "kl.~14.30–16.00"],
+    ["18.-21. ágúst", "18.–21.~ágúst"],
+    ["15. mars-14. apríl", "15.~mars–14.~apríl"],
+    ["„komdu“ - og", "„komdu“~– og"],
+    ["orð – næsta", "orð~– næsta"],
+  ])("%p becomes %p", (input, expected) => {
+    expect(show(typeset(input, { dashes: true }))).toBe(expected);
+  });
+
+  test.each(["v1.2-3", "COVID-19", "Hún fór - 5 - 3"])("leaves %p alone", input => {
+    expect(typeset(input, { dashes: true })).toBe(input);
   });
 });

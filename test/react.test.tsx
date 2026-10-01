@@ -787,3 +787,58 @@ describe("processSegments", () => {
     expect(out).toEqual(["a", `́stríða ${hyphenate("Hraðbrautarframkvæmdir")}`]);
   });
 });
+
+describe("components at block level end the run", () => {
+  function P({ children }: { children?: ReactNode; "data-skiptingar"?: string }) {
+    return <p>{children}</p>;
+  }
+  function Wrap({ children }: { children?: ReactNode }) {
+    return <>{children}</>;
+  }
+
+  test("two paragraph components are not read as one text", () => {
+    const html = render(
+      <Hyphenate>
+        <P>Hann fór í afþreyingarmiðstöðina.</P>
+        <P>Sveitarstjórnarkosningar hefjast</P>
+      </Hyphenate>
+    );
+    expect(html).toContain(hyphenate("afþreyingarmiðstöðina"));
+    expect(html).toContain(hyphenate("Sveitarstjórnarkosningar"));
+  });
+
+  test("quotes do not pair across two paragraph components", () => {
+    const html = render(
+      <Typeset>
+        <P>Hann sagði "já</P>
+        <P>og nei" í gær</P>
+      </Typeset>
+    );
+    expect(html).toBe("<p>Hann sagði &quot;já</p><p>og nei&quot; í gær</p>");
+  });
+
+  test("a lone component inside an inline element stays inline", () => {
+    const html = render(
+      <Typeset>
+        <p>
+          "
+          <em>
+            <Wrap>orð</Wrap>
+          </em>
+          "
+        </p>
+      </Typeset>
+    );
+    expect(html).toBe("<p>„<em>orð</em>“</p>");
+  });
+
+  test('data-skiptingar="inline" joins a component to the run', () => {
+    const html = render(
+      <Typeset>
+        <P data-skiptingar="inline">"a</P>
+        <P data-skiptingar="inline">b"</P>
+      </Typeset>
+    );
+    expect(html).toBe("<p>„a</p><p>b“</p>");
+  });
+});

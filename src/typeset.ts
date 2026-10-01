@@ -24,8 +24,29 @@ export type TypesetOptions = {
   singleLetter?: boolean;
   /** No-break space between the last two words of the text. Default false. */
   lastWords?: boolean;
-  /** En dashes in number ranges and spaced hyphens. Default false. */
+  /**
+   * En dashes in number ranges (`1990–2000`, `kl. 14.30–16.00`, `18.–21.`,
+   * `mars–14. apríl`) and spaced hyphens, and a no-break space before a spaced
+   * dash so a line never starts with one. Default false.
+   */
   dashes?: boolean;
+  /** No-break space between a number and its unit: `1.000 kr.`, `5 km`. Default true. */
+  units?: boolean;
+  /** No-break space between a month and the year after it: `sept. 2027`. Default true. */
+  dates?: boolean;
+  /** No-break space after an ordinal before a lowercase word: `1. sæti`. Default true. */
+  ordinals?: boolean;
+  /**
+   * No-break space between an abbreviation and the number after it (`bls. 12`,
+   * `kl. 14.30`, `kt. 450190-2939`), and inside older spaced abbreviations
+   * (`t. d.`). Default true.
+   */
+  prefixes?: boolean;
+  /**
+   * No-break space after a title or an initial before a name: `dr. Jón`,
+   * `Jón G. Sigurðsson`. Default true.
+   */
+  titles?: boolean;
   /**
    * Keep kennitala and phone numbers on one line: `010190-2939`, `555-1234`,
    * `555 1234`, `+354 555 1234`. Hyphens become U+2011 NON-BREAKING HYPHEN and
@@ -78,6 +99,8 @@ export const NUMBER_PREFIXES: readonly string[] = [
   "tölul.",
   "u.þ.b.",
   "ca.",
+  "kt.",
+  "s.",
 ];
 
 /**
@@ -112,10 +135,12 @@ const MONTHS = [
   "desember",
   "jan.",
   "feb.",
+  "febr.",
   "mar.",
   "apr.",
   "jún.",
   "júl.",
+  "ág.",
   "ágú.",
   "sept.",
   "sep.",
@@ -152,7 +177,8 @@ const NUMBER_UNIT = new RegExp(
   `(?<![\\p{L}\\p{N}])\\d+(?:\\.\\d{3})*(?:,\\d+)?${SP}(?:${alternation(NUMBER_UNITS)})(?![\\p{L}\\p{N}])`,
   "gu"
 );
-const ORDINAL = new RegExp(`(?<![\\p{L}\\p{N}])\\d+\\.${SP}(?=\\p{Ll})`, "gu");
+// At most 3 digits: "árið 1990. en" ends a clause, it is not an ordinal.
+const ORDINAL = new RegExp(`(?<![\\p{L}\\p{N}])\\d{1,3}\\.${SP}(?=\\p{Ll})`, "gu");
 const MONTH_YEAR = new RegExp(
   `(?<![\\p{L}\\p{N}])(?:${alternation(MONTHS)})${SP}(?=\\d{4}(?!\\d))`,
   "giu"
@@ -172,6 +198,11 @@ const SPACED_ABBREVIATION = new RegExp(
 );
 const TITLE = new RegExp(
   `(?<![\\p{L}\\p{N}])(?:${titleAlternation()})\\.${SP}(?=\\p{Lu})`,
+  "gu"
+);
+// A capital initial with its full stop before a capitalised name: "Jón G. Sigurðsson".
+const INITIAL = new RegExp(
+  `(?<![\\p{L}\\p{N}])\\p{Lu}\\.${SP}(?=\\p{Lu}[\\p{Ll}.])`,
   "gu"
 );
 const SINGLE_LETTER = new RegExp(`(?<![\\p{L}\\p{N}\\p{M}'’-])\\p{L}${SP}(?=\\S)`, "gu");
@@ -200,8 +231,25 @@ const STANDALONE_NUMBER = new RegExp(
 );
 // A range stands alone: no letter, digit or hyphen touches it, so "AB12-34CD",
 // "A4-2024" and "F-35" are not ranges.
-const YEAR_RANGE = /(?<![\p{L}\p{N}-])(\d+)-(\d+)(?![\p{L}\p{N}-])/gu;
-const SPACED_HYPHEN = new RegExp(`(?<=\\p{L}${SP})-(?=${SP}\\p{L})`, "gu");
+// Nor a decimal point or comma: in "v1.2-3" the hyphen is not a range.
+const YEAR_RANGE = /(?<![\p{L}\p{N}.,-])(\d+)-(\d+)(?![\p{L}\p{N}-]|[.,]\p{N})/gu;
+// Times of day ("14.30-16.00") and ordinals ("18.-21. ágúst"), Ritreglur 26.2.1.
+const TIME_RANGE =
+  /(?<![\p{L}\p{N}.,-])\d{1,2}[.:]\d{2}-\d{1,2}[.:]\d{2}(?![\p{L}\p{N}-]|[.,]\p{N})/gu;
+const ORDINAL_RANGE = /(?<![\p{L}\p{N}.,-])\d{1,3}\.-\d{1,3}\.(?![\p{N}-])/gu;
+// A month before a day: "15. mars-14. apríl".
+const MONTH_RANGE = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:${alternation(MONTHS)})-(?=\\d{1,2}\\.)`,
+  "giu"
+);
+// A spaced hyphen between words. Before it may also be a closing mark or
+// punctuation ("„komdu“ - og"), after it an opening mark.
+const SPACED_HYPHEN = new RegExp(
+  `(?<=[\\p{L}“‘”’)\\]!?.,…]${SP})-(?=${SP}[\\p{L}„‚(])`,
+  "gu"
+);
+// The space before a spaced dash, typed or converted, so no line starts with it.
+const SPACE_BEFORE_DASH = new RegExp(`(?<=\\S) (?=[–—]${SP})`, "gu");
 
 const OPENING_CONTEXT = /[\s([{—–\-„‚]/u;
 const LETTER = /\p{L}/u;
@@ -366,10 +414,15 @@ function isRange(a: string, b: string): boolean {
 }
 
 function applyDashes(text: string, mask: Mask): string {
-  const withRanges = replaceMatches(text, YEAR_RANGE, mask, (match, [a = "", b = ""]) =>
-    isRange(a, b) ? match.replace("-", "–") : match
+  const toDash = (match: string) => match.replace("-", "–");
+  let out = replaceMatches(text, YEAR_RANGE, mask, (match, [a = "", b = ""]) =>
+    isRange(a, b) ? toDash(match) : match
   );
-  return replaceMatches(withRanges, SPACED_HYPHEN, mask, () => "–");
+  for (const pattern of [TIME_RANGE, ORDINAL_RANGE, MONTH_RANGE]) {
+    out = replaceMatches(out, pattern, mask, toDash);
+  }
+  out = replaceMatches(out, SPACED_HYPHEN, mask, () => "–");
+  return replaceMatches(out, SPACE_BEFORE_DASH, mask, () => NO_BREAK_SPACE);
 }
 
 type ResolvedOptions = Required<Omit<TypesetOptions, "preset">>;
@@ -382,6 +435,11 @@ function resolveOptions(options: TypesetOptions): ResolvedOptions {
     lastWords: options.lastWords ?? all,
     dashes: options.dashes ?? all,
     numbers: options.numbers ?? true,
+    units: options.units ?? true,
+    dates: options.dates ?? true,
+    ordinals: options.ordinals ?? true,
+    prefixes: options.prefixes ?? true,
+    titles: options.titles ?? true,
   };
 }
 
@@ -392,15 +450,19 @@ function typesetText(text: string, options: ResolvedOptions): string {
   if (options.quotes) {
     out = applyQuotes(out, mask);
   }
-  for (const pattern of [
-    NUMBER_UNIT,
-    NUMBER_PREFIX,
-    ORDINAL,
-    MONTH_YEAR,
-    SPACED_ABBREVIATION,
-    TITLE,
-  ]) {
-    out = bindSpaces(out, pattern, mask);
+  const bound: [boolean, RegExp][] = [
+    [options.units, NUMBER_UNIT],
+    [options.prefixes, NUMBER_PREFIX],
+    [options.ordinals, ORDINAL],
+    [options.dates, MONTH_YEAR],
+    [options.prefixes, SPACED_ABBREVIATION],
+    [options.titles, TITLE],
+    [options.titles, INITIAL],
+  ];
+  for (const [on, pattern] of bound) {
+    if (on) {
+      out = bindSpaces(out, pattern, mask);
+    }
   }
   if (options.numbers) {
     out = replaceMatches(out, STANDALONE_NUMBER, mask, match =>
