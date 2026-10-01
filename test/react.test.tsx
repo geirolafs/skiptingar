@@ -773,4 +773,17 @@ describe("processSegments", () => {
   test("does nothing but normalise when both options are off", () => {
     expect(processSegments(["á".normalize("NFD"), "b"], {})).toEqual(["á", "b"]);
   });
+
+  test("keeps soft hyphens already in the text when only typesetting", () => {
+    expect(processSegments([`hest${SHY}arnir`], { typeset: {} })).toEqual([
+      `hest${SHY}arnir`,
+    ]);
+  });
+
+  test("a mark that composes across a border costs only its own word", () => {
+    const out = processSegments(["a", "́stríða Hraðbrautarframkvæmdir"], {
+      hyphenate: {},
+    });
+    expect(out).toEqual(["a", `́stríða ${hyphenate("Hraðbrautarframkvæmdir")}`]);
+  });
 });

@@ -12,6 +12,7 @@ export type ProcessOptions = {
 };
 
 const SOFT_HYPHENS = new RegExp(SOFT_HYPHEN, "g");
+const WHITESPACE_RUNS = /(\s+)/;
 
 /** `true` means the default rules, `false` means off. */
 export function resolveTypeset(
@@ -51,10 +52,41 @@ function insertAcrossSegments(
 }
 
 /**
+ * Maps break offsets into `NFC(text)` back to offsets into `text`.
+ *
+ * Every segment is already NFC, so the joined text differs from its NFC form
+ * only where a combining mark at the start of a segment composes with the
+ * letter before it. Composition never crosses whitespace, so the text is
+ * compared word by word: a word that NFC leaves alone keeps its breaks, and
+ * the rare word that NFC changes loses them.
+ */
+function toRawOffsets(text: string, offsets: readonly number[]): number[] {
+  const out: number[] = [];
+  let next = 0;
+  let raw = 0;
+  let nfc = 0;
+  for (const token of text.split(WHITESPACE_RUNS)) {
+    const normal = token.normalize("NFC");
+    const end = nfc + normal.length;
+    const stable = normal === token;
+    for (let at = offsets[next]; at !== undefined && at < end; at = offsets[++next]) {
+      if (stable) {
+        out.push(at - nfc + raw);
+      }
+    }
+    raw += token.length;
+    nfc = end;
+  }
+  return out;
+}
+
+/**
  * The whole pipeline over the text segments of one run, for example the text
- * nodes of a paragraph split by inline elements. Every segment is put in NFC
- * and loses its soft hyphens. Then typeset works across the segments. Then
- * the joined run is hyphenated and the breaks are cut back into the segments.
+ * nodes of a paragraph split by inline elements. Every segment is put in NFC.
+ * Then typeset works across the segments. Then, when hyphenation is on, the
+ * old soft hyphens are removed, the joined run is hyphenated and the breaks
+ * are cut back into the segments. With hyphenation off, soft hyphens already
+ * in the text are kept.
  * A word split across segments is hyphenated as one word, and a web address
  * is found in the joined text.
  *
@@ -65,21 +97,15 @@ export function processSegments(
   segments: readonly string[],
   options: ProcessOptions
 ): string[] {
-  const clean = segments.map(segment =>
-    segment.replace(SOFT_HYPHENS, "").normalize("NFC")
-  );
-  const typeset = options.typeset ? typesetSegments(clean, options.typeset) : clean;
+  const normal = segments.map(segment => segment.normalize("NFC"));
   if (!options.hyphenate) {
-    return typeset;
+    return options.typeset ? typesetSegments(normal, options.typeset) : normal;
   }
 
+  const clean = normal.map(segment => segment.replace(SOFT_HYPHENS, ""));
+  const typeset = options.typeset ? typesetSegments(clean, options.typeset) : clean;
   const joined = typeset.join("");
-  // Offsets count in NFC text. A mark that composes with a letter across a
-  // border would move them, so such a run is left unhyphenated.
-  if (joined.normalize("NFC") !== joined) {
-    return typeset;
-  }
-  const offsets = breakOffsets(joined, options.hyphenate);
+  const offsets = toRawOffsets(joined, breakOffsets(joined, options.hyphenate));
   return insertAcrossSegments(
     typeset,
     offsets,
