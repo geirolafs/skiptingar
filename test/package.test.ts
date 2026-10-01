@@ -184,3 +184,16 @@ describe("pattern format", () => {
     expect(decodePatterns(PATTERNS)).toEqual(patterns);
   });
 });
+
+describe("sizes.json", () => {
+  test("matches a fresh build, and the README shows the same figures", async () => {
+    // Failing here means: run `bun run size` in the package folder and commit the result.
+    const { measureSizes, renderReadme, renderSizes, SIZES_PATH } = await import(
+      "../scripts/size"
+    );
+    const sizes = await measureSizes();
+    expect(readFileSync(SIZES_PATH, "utf8")).toBe(renderSizes(sizes));
+    const readme = readFileSync(join(PACKAGE_ROOT, "README.md"), "utf8");
+    expect(readme).toBe(renderReadme(readme, sizes));
+  }, 30_000);
+});

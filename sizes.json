@@ -1,0 +1,22 @@
+{
+  "rag": {
+    "brotli": 4.2,
+    "gzip": 4.6
+  },
+  "endpoint": {
+    "brotli": 1.6,
+    "gzip": 1.7
+  },
+  "client": {
+    "brotli": 6.6,
+    "gzip": 7.3
+  },
+  "browser": {
+    "brotli": 52.7,
+    "gzip": 59.3
+  },
+  "patterns": {
+    "brotli": 51.1,
+    "gzip": 57.6
+  }
+}

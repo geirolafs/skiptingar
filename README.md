@@ -216,9 +216,9 @@ function Caption({ text }: { text: string }) {
 ```
 
 Use this for text that only exists in the browser, like something a user
-types. The patterns load lazily the first time, about 47 kB brotli (53 kB
-gzip); the full client entry is about 5.5 kB brotli, and Settle rag alone
-(`SettledText`) about 4.3 kB. Until then the
+types. The patterns load lazily the first time, <!-- size:patterns -->51.1 kB<!-- /size --> brotli for the core
+and its patterns; the full client entry is <!-- size:client -->6.6 kB<!-- /size --> brotli,
+and Settle rag alone (`SettledText`) <!-- size:rag -->4.2 kB<!-- /size -->. Until then the
 hook returns the text as it is, and so does it if the chunk fails to load. The
 next component that mounts tries the load again. A component that mounts after
 the load gets the processed text on its first render. Anything you can do on
@@ -270,7 +270,8 @@ server-rendered paragraph can move slightly once.
 
 #### Hyphenate browser text on your server
 
-The patterns are about 47 kB brotli. A page that has a server can skip them:
+The hyphenation core and its patterns are <!-- size:patterns -->51.1 kB<!-- /size --> brotli. A page
+that has a server can skip them:
 mount the handler on a POST route and point the client at it once.
 
 ```ts
