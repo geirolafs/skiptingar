@@ -22,11 +22,15 @@
       "types": "./dist/client/index.d.ts",
       "import": "./dist/client/index.js"
     },
+    "./sizes.json": "./sizes.json",
+    "./tests.json": "./tests.json",
     "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "data/exceptions.txt",
+    "sizes.json",
+    "tests.json",
     "LICENSE",
     "NOTICE",
     "README.md",
@@ -34,6 +38,11 @@
   ],
   "scripts": {
     "build": "bun run scripts/build.ts",
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check",
+    "generate": "bun run scripts/build-data.ts",
+    "tests:count": "bun run scripts/tests.ts",
     "size": "bun run scripts/size.ts",
     "bench": "bun run scripts/bench.ts"
   },
@@ -51,8 +60,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/geirolafs/www.git",
-    "directory": "src/packages/skiptingar"
+    "url": "git+https://github.com/geirolafs/skiptingar.git"
+  },
+  "homepage": "https://github.com/geirolafs/skiptingar#readme",
+  "bugs": {
+    "url": "https://github.com/geirolafs/skiptingar/issues"
   },
   "publishConfig": {
     "access": "public",
@@ -65,5 +77,14 @@
     "typesetting",
     "íslenska",
     "orðskipting"
-  ]
+  ],
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.14",
+    "@types/bun": "^1.4.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "^7.0.2"
+  }
 }
