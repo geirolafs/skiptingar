@@ -119,8 +119,27 @@ async function measureEntry(code: string): Promise<{ eager: Buffer[]; lazy: Buff
     ) as string;
     const eager = collect(entryPath, "statics", new Set());
     const everything = collect(entryPath, "all", new Set());
+    // Bun's chunk hashes change with the folder the build runs from, and the
+    // names are inside the import strings, so the brotli size moved by up to
+    // 0.1 kB between `bun test` in the package and at the repo root. Each
+    // hashed name becomes a placeholder of the same length, in a fixed order,
+    // before anything is compressed.
+    const chunkNames = [...files.keys()]
+      .map(path => basename(path))
+      .filter(name => name !== "entry.js")
+      .sort((a, b) => {
+        const left = (files.get(join(dirname(entryPath), a)) as Buffer).toString();
+        const right = (files.get(join(dirname(entryPath), b)) as Buffer).toString();
+        return left.length - right.length || (left < right ? -1 : left > right ? 1 : 0);
+      });
+    const stable = (text: string) =>
+      chunkNames.reduce(
+        (out, name, index) =>
+          out.replaceAll(name, `c${String(index).padStart(name.length - 4, "0")}.js`),
+        text
+      );
     const bytes = (paths: Iterable<string>) =>
-      [...paths].map(path => files.get(path) as Buffer);
+      [...paths].map(path => Buffer.from(stable((files.get(path) as Buffer).toString())));
     return {
       eager: bytes(eager),
       lazy: bytes([...everything].filter(path => !eager.has(path))),

@@ -238,8 +238,8 @@ function Caption({ text }: { text: string }) {
 ```
 
 Use this for text that only exists in the browser, like something a user
-types. The patterns load lazily the first time, <!-- size:patterns -->49.9 kB<!-- /size --> brotli for the core
-and its patterns; the full client entry is <!-- size:client -->3 kB<!-- /size --> brotli. Until then the
+types. The patterns load lazily the first time, <!-- size:patterns -->49.8 kB<!-- /size --> brotli for the core
+and its patterns; the full client entry is <!-- size:client -->2.9 kB<!-- /size --> brotli. Until then the
 hook returns the text as it is, and so does it if the chunk fails to load. The
 next component that mounts tries the load again. A component that mounts after
 the load gets the processed text on its first render. Anything you can do on
@@ -247,7 +247,7 @@ the server, do on the server.
 
 #### Hyphenate browser text on your server
 
-The hyphenation core and its patterns are <!-- size:patterns -->49.9 kB<!-- /size --> brotli. A page
+The hyphenation core and its patterns are <!-- size:patterns -->49.8 kB<!-- /size --> brotli. A page
 that has a server can skip them:
 mount the handler on a POST route and point the client at it once.
 
