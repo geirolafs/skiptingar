@@ -45,8 +45,8 @@ export function optionsKey(options: object | undefined): string {
       !Array.isArray(typeset) &&
       Object.keys(typeset).length === 0);
   if (isDefaultTypeset) {
-    const { typeset: _default, ...rest } = sorted;
-    return JSON.stringify(rest);
+    // `sorted` is a fresh object from `sortKeys`, so it is safe to edit.
+    delete sorted.typeset;
   }
   return JSON.stringify(sorted);
 }
