@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.1 (2026-10-02)
+
+- Fixed: 0.1.0 did not load. Its `dist/index.js` exported `processSegments`
+  and `resolveTypeset` twice, so `import "skiptingar"` threw a `SyntaxError`,
+  and so did `skiptingar/react` and `skiptingar/client`. Use 0.1.1 or newer.
+- Every built entry is now loaded in Node before a release, so a bundle that
+  does not load cannot be published again.
+- README: the `processSegments` example shows the default typographic rules,
+  and the Ritreglur minimums are described as they are in Ritreglur.
+
 ## 0.1.0 (2026-10-02)
 
 The first version meant for npm. The API may still change before 1.0.

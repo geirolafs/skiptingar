@@ -29,8 +29,8 @@ Chrome, Edge and Safari have none on any system (MDN browser-compat-data,
 itself, on the server, so every browser gets the same places to break, and
 hyphenating ships no JavaScript. Which of those places a line uses is still up
 to the browser and the font. CSS `text-wrap` (the third v1 layer) helps it
-choose. Settling the rag is a separate package, `settle-rag`; pass it
-`RAG_LANGUAGE` from this one for Icelandic.
+choose. Settling the rag is a separate package, `settle-rag`, which is not on
+npm yet; pass it `RAG_LANGUAGE` from this one for Icelandic.
 
 ```
 Vaðla·heið·ar·vega·vinnu·verk·færa·geymslu·skúr
@@ -41,7 +41,8 @@ Hann sagði „Verð 1.000⍽kr. frá 30.⍽september“
 
 ## Status
 
-`0.1.0` is the first version on npm. The API may still change before 1.0.
+On npm since `0.1.1` (`0.1.0` does not load; do not use it). The API may
+still change before 1.0.
 
 ```sh
 npm install skiptingar
@@ -78,8 +79,7 @@ typeset('Verð 1.000 kr. frá 30. september, sagði "hann"');
 The official spelling rules (Ritreglur §33) allow a break in words of 4 letters
 or more, with at least 1 letter before it and 2 after. The 1 and the 2 come
 from the data: the Árni Magnússon patterns set `LEFTHYPHENMIN 1` and
-`RIGHTHYPHENMIN 2`. The 4-letter minimum word length is skiptingar's own
-choice. That is `rules: "ritreglur"`.
+`RIGHTHYPHENMIN 2`. That is `rules: "ritreglur"`.
 
 The default, `rules: "typographic"`, is new and under development, and it may
 give odd results. Turn it off with `rules: "ritreglur"` if it does. It drops
@@ -162,7 +162,7 @@ source code: `SOFT_HYPHEN` (U+00AD), `NO_BREAK_SPACE` (U+00A0) and
 import { processSegments } from "skiptingar";
 
 processSegments(["Hraðbrautar", "framkvæmdir"], { hyphenate: {}, typeset: {} });
-// ["Hrað­braut­ar­", "fram­kvæmd­ir"]
+// ["Hrað­brautar­", "fram­kvæmdir"]
 ```
 
 This is what `<Hyphenate>` runs on each run of text. Give it the text pieces

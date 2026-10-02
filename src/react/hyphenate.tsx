@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { HyphenateOptions, TypesetOptions } from "../index";
-import { resolveTypeset } from "../index";
+// From the module, not the `.` entry (see transform.ts).
+import { resolveTypeset } from "../process";
 import { transformChildren } from "./transform";
 import { toFragment } from "./walk";
 

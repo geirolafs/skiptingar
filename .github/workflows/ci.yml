@@ -29,4 +29,6 @@ jobs:
 
       - run: bun run build
 
+      - run: bun run check:dist
+
       - run: bun run size --check

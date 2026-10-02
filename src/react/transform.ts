@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import type { HyphenateOptions, TypesetOptions } from "../index";
-import { processSegments } from "../index";
+// From the module, not the `.` entry: an entry importing another entry makes
+// Bun (1.2.21, `splitting: true`) export these names twice, which no runtime loads.
+import { processSegments } from "../process";
 import { isIcelandic, mapTextSegments } from "./walk";
 
 export type TransformOptions = {

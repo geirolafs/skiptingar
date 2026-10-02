@@ -1,6 +1,6 @@
 {
   "name": "skiptingar",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Icelandic hyphenation from the 2020 patterns, with new typographic rules that drop breaks that read badly, put in on the server as soft hyphens; Icelandic typesetting rules (no-break spaces, quotes); and CSS text-wrap to pair them with.",
   "license": "MIT AND CC-BY-4.0 AND CC0-1.0",
   "author": "Geir Ólafsson",
@@ -38,6 +38,7 @@
   ],
   "scripts": {
     "build": "bun run scripts/build.ts",
+    "check:dist": "node scripts/check-dist.mjs",
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome check",
