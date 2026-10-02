@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 (2026-10-02)
+
+- README rewritten to match the package page: three layers on the server
+  (letter patterns, better breaks, locale details), with CSS `text-wrap` as a
+  recommendation, not a layer. It now leads with install and a first page,
+  and adds what it fixes, the cost against other packages, support, the
+  roadmap and the full pattern credits. No code changes.
+
 ## 0.1.1 (2026-10-02)
 
 - Fixed: 0.1.0 did not load. Its `dist/index.js` exported `processSegments`

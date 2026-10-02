@@ -1,7 +1,7 @@
 {
   "name": "skiptingar",
-  "version": "0.1.1",
-  "description": "Icelandic hyphenation from the 2020 patterns, with new typographic rules that drop breaks that read badly, put in on the server as soft hyphens; Icelandic typesetting rules (no-break spaces, quotes); and CSS text-wrap to pair them with.",
+  "version": "0.1.2",
+  "description": "Icelandic text, set well: hyphenation from the 2020 letter patterns, better breaks and Icelandic locale details, all made on the server as soft hyphens and no-break spaces.",
   "license": "MIT AND CC-BY-4.0 AND CC0-1.0",
   "author": "Geir Ólafsson",
   "type": "module",
