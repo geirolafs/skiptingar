@@ -35,6 +35,8 @@ export type { HandlerLimits, RemoteItem, RemoteOptions, RemoteResult } from "./s
 export { handleSkiptingarRequest, runRemoteItems } from "./server";
 export type { TypesetOptions } from "./typeset";
 export {
+  LOCALE_RULE_COUNT,
+  LOCALE_RULES,
   NUMBER_PREFIXES,
   NUMBER_UNITS,
   SPACED_ABBREVIATIONS,

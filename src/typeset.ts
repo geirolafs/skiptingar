@@ -465,6 +465,18 @@ function resolveOptions(options: TypesetOptions): ResolvedOptions {
   };
 }
 
+/**
+ * The locale rules `typeset` has, by option name: one for each option
+ * `resolveOptions` fills in (quotes, units, dates and the rest), not counting
+ * `preset`.
+ */
+export const LOCALE_RULES = Object.keys(
+  resolveOptions({})
+) as readonly (keyof ResolvedOptions)[];
+
+/** How many locale rules `typeset` has. */
+export const LOCALE_RULE_COUNT = LOCALE_RULES.length;
+
 function typesetText(text: string, options: ResolvedOptions): string {
   const mask = findProtectedMask(text);
   let out = text;

@@ -17,6 +17,6 @@
   },
   "patterns": {
     "brotli": 48.9,
-    "gzip": 54.9
+    "gzip": 55
   }
 }
