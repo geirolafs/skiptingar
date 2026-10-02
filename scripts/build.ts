@@ -1,11 +1,13 @@
 /**
  * Builds the package into dist/: one ESM bundle per entry point (`.`,
  * `./react`, `./client`), with the pattern data in its own chunk that the
- * client entry loads lazily, and the type declarations beside them. React is
- * a peer and stays outside. Run from the package folder: `bun run build`.
+ * client entry loads lazily, and the type declarations beside them, with `.js`
+ * extensions on their relative imports. React is a peer and stays outside.
+ * Run from the package folder: `bun run build`.
  */
+import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const root = join(import.meta.dir, "..");
 const dist = join(root, "dist");
@@ -53,6 +55,54 @@ const types = Bun.spawnSync(["bunx", "tsc", "-p", join(root, "tsconfig.build.jso
 });
 if (types.exitCode !== 0) {
   process.exit(types.exitCode ?? 1);
+}
+
+// Node16/NodeNext type resolution rejects extensionless relative imports, and
+// tsc emits the specifiers as the sources wrote them. The sources stay
+// extensionless (the site imports them through `@/packages/...`), so the
+// emitted declarations get the extension here, the way Node resolves it.
+const RELATIVE_SPECIFIER =
+  /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(["'])(\.{1,2}(?:\/[^"'\n]*)?)\2/g;
+const TRAILING_SLASH = /\/$/;
+const HAS_EXTENSION = /\.(?:[cm]?js|json)$/;
+
+function withExtension(file: string, specifier: string): string {
+  if (HAS_EXTENSION.test(specifier)) {
+    return specifier;
+  }
+  const target = resolve(dirname(file), specifier);
+  if (existsSync(`${target}.d.ts`)) {
+    return `${specifier}.js`;
+  }
+  if (existsSync(join(target, "index.d.ts"))) {
+    return `${specifier.replace(TRAILING_SLASH, "")}/index.js`;
+  }
+  throw new Error(
+    `${file.replace(`${root}/`, "")}: cannot resolve "${specifier}" to a .d.ts file or a folder with an index.d.ts`
+  );
+}
+
+/** Rewrites every extensionless relative specifier in the emitted .d.ts files. */
+async function addDeclarationExtensions(): Promise<void> {
+  const glob = new Bun.Glob("**/*.d.ts");
+  for await (const file of glob.scan({ cwd: dist, absolute: true })) {
+    const text = await Bun.file(file).text();
+    const rewritten = text.replace(
+      RELATIVE_SPECIFIER,
+      (_match, lead: string, quote: string, specifier: string) =>
+        `${lead}${quote}${withExtension(file, specifier)}${quote}`
+    );
+    if (rewritten !== text) {
+      await Bun.write(file, rewritten);
+    }
+  }
+}
+
+try {
+  await addDeclarationExtensions();
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
 }
 
 for (const output of result.outputs) {

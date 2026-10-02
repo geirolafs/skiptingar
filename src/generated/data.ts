@@ -5,7 +5,7 @@
  * Institute for Icelandic Studies; version 1 (1985) Baldur Jónsson and Magnús Gíslason.
  * CC BY 4.0, https://creativecommons.org/licenses/by/4.0/ - https://github.com/icelandic-lt/hyphenation-is */
 /** The patterns, sorted and front-coded (see src/pattern-format.ts). */
-export const PATTERNS = `A.a2a
+export const PATTERNS: string = `A.a2a
 Db
 Dd1
 De
@@ -23145,7 +23145,7 @@ Bý1k
 Cf1a
 Aš1e`;
 
-export const EXCEPTIONS = `# Icelandic hyphenation exceptions
+export const EXCEPTIONS: string = `# Icelandic hyphenation exceptions
 #
 # License: CC0 1.0 (public domain dedication).
 #

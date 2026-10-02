@@ -88,10 +88,12 @@ export function renderDataModule(dic: string, exceptions: string): string {
     "/*! Icelandic Hyphenation Dictionary 2.0 (c) 2020 Kristján Rúnarsson, Árni Magnússon",
     " * Institute for Icelandic Studies; version 1 (1985) Baldur Jónsson and Magnús Gíslason.",
     " * CC BY 4.0, https://creativecommons.org/licenses/by/4.0/ - https://github.com/icelandic-lt/hyphenation-is */",
+    // The explicit `: string` keeps the emitted declaration at one line. Left
+    // to inference, it would spell out the whole literal (150 kB) in dist.
     "/** The patterns, sorted and front-coded (see src/pattern-format.ts). */",
-    `export const PATTERNS = ${asTemplateLiteral([encodePatterns(patterns)])};`,
+    `export const PATTERNS: string = ${asTemplateLiteral([encodePatterns(patterns)])};`,
     "",
-    `export const EXCEPTIONS = ${asTemplateLiteral(exceptionLines)};`,
+    `export const EXCEPTIONS: string = ${asTemplateLiteral(exceptionLines)};`,
     "",
     "/** Fewest letters before a break, from the dictionary header. */",
     `export const DATA_LEFT_MIN = ${minimums.leftMin};`,
