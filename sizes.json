@@ -1,26 +1,22 @@
 {
-  "rag": {
-    "brotli": 5.4,
-    "gzip": 6
-  },
   "endpoint": {
-    "brotli": 5,
-    "gzip": 5.5
+    "brotli": 2.1,
+    "gzip": 2.4
   },
   "client": {
-    "brotli": 7.9,
-    "gzip": 8.8
+    "brotli": 3,
+    "gzip": 3.4
   },
   "cleanCopy": {
     "brotli": 0.6,
     "gzip": 0.7
   },
   "browser": {
-    "brotli": 54.8,
-    "gzip": 61.4
+    "brotli": 52,
+    "gzip": 58.3
   },
   "patterns": {
-    "brotli": 49.8,
-    "gzip": 55.9
+    "brotli": 49.9,
+    "gzip": 56
   }
 }

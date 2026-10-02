@@ -33,20 +33,11 @@ The first version meant for npm. The API may still change before 1.0.
   numbers kept on one line; Icelandic quotes; en dashes in ranges. One-letter
   words and the last two words are opt-in. Every rule has its own option.
 - `skiptingar/react`: `<Hyphenate>` and `<Typeset>` for server components.
-- `skiptingar/client`: Settle rag (`SettledText`, `useSettledRag`,
-  `useRagPlan`, `settle` for plain DOM), `useHyphenate` with lazily loaded
-  patterns, and `CleanCopy`.
-- Settle rag can tighten a line: `tighten`, `tightenLetters` and
-  `tightenWeight` let a line take a little less word space (and, only when it
-  has too few spaces, letter space) to keep a word on it, as a typesetter does
-  by hand. It never loosens, and a line uses it or the overhang, not both.
-  `splitSettled()` cuts the settled text for drawing.
-- An overhang keeps the element's own `letter-spacing`: `Hang` has an optional
-  `letterSpacing` (px, the element's spacing included), which `settleRag` sets
-  and `applyRag`, `splitSettled` and `splitHangs` pass on. A tracked heading's
-  overhang line no longer sets wider than planned. Without it, a hang is drawn
-  with `-width` as before.
-- `bestBreaks()`: the rag search alone, without a browser.
+- `skiptingar/client`: `useHyphenate` with lazily loaded patterns, and
+  `CleanCopy`.
+- `RAG_LANGUAGE`, `LINKING_SYLLABLES` and `SHORT_WORDS`: the Icelandic short
+  words and linking syllables, ready to pass to the `settle-rag` package as
+  `language`. Settle rag itself is its own package.
 - `handleSkiptingarRequest()` and `configureSkiptingar({ endpoint })`: hyphenate
   browser text on your server, so the patterns do not download unless the
   server cannot be reached.

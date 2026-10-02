@@ -26,7 +26,7 @@ const IMPORT = /import\s*\{([^}]*)\}\s*from\s*"skiptingar(\/[a-z]+)?"/g;
 function documentedImports(): { subpath: string; name: string; where: string }[] {
   const files = [
     join(PACKAGE_ROOT, "README.md"),
-    join(SITE_ROOT, "src/lib/content/localhost-hyphenation.ts"),
+    join(SITE_ROOT, "src/lib/content/localhost-skiptingar.ts"),
   ];
   return files.flatMap(file =>
     [...readFileSync(file, "utf8").matchAll(IMPORT)].flatMap(match =>

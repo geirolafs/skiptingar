@@ -21,10 +21,6 @@ const README_PATH = join(root, "README.md");
 
 /** One way of using the package, as the code a page would write. */
 const SETUPS = {
-  rag: {
-    label: "Settle rag only (SettledText)",
-    code: `import { SettledText } from "${src}/client/index"; console.log(SettledText);`,
-  },
   endpoint: {
     label: "useHyphenate with an endpoint",
     code: `import { configureSkiptingar, useHyphenate } from "${src}/client/index"; configureSkiptingar({ endpoint: "/api" }); console.log(useHyphenate);`,

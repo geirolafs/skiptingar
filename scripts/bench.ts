@@ -1,10 +1,8 @@
 /**
- * How fast the core runs: hyphenating and typesetting a long text, and the
- * rag search on paragraphs of 50, 200 and 1000 words at two measures, with
- * made-up character widths (the browser's measuring is not included). Run
- * from the package folder: `bun run bench`.
+ * How fast the core runs: hyphenating and typesetting a long text. Run from
+ * the package folder: `bun run bench`.
  */
-import { bestBreaks, hyphenate, typeset } from "../src";
+import { hyphenate, typeset } from "../src";
 
 const SENTENCE =
   "Mörður hét maður er kallaður var gígja. Hann var sonur Sighvats hins rauða. Hann bjó á Velli á Rangárvöllum. Hann var ríkur höfðingi og málafylgjumaður mikill og svo mikill lögmaður að engir þóttu löglegir dómar dæmdir nema hann væri við.";
@@ -32,17 +30,3 @@ console.log(
 console.log(
   `typeset:   ${Math.round(20_000 / (typesetMs / 1000)).toLocaleString()} words/s`
 );
-
-for (const count of [50, 200, 1000]) {
-  const text = hyphenate(words(count));
-  const x = new Float64Array(text.length + 1);
-  for (let index = 0; index < text.length; index += 1) {
-    // About 7 px a character, varied a little; a soft hyphen draws nothing.
-    x[index + 1] =
-      (x[index] ?? 0) + (text[index] === "­" ? 0 : 6 + (text.charCodeAt(index) % 3));
-  }
-  for (const measure of [320, 640]) {
-    const ms = time(() => bestBreaks(text, { x, hyphen: 7, measure, overhang: 0 }));
-    console.log(`bestBreaks: ${count} words at ${measure}px: ${ms.toFixed(1)} ms`);
-  }
-}

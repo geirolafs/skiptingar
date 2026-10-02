@@ -29,7 +29,8 @@ Chrome, Edge and Safari have none on any system (MDN browser-compat-data,
 itself, on the server, so every browser gets the same places to break, and
 hyphenating ships no JavaScript. Which of those places a line uses is still up
 to the browser and the font. CSS `text-wrap` (the third v1 layer) helps it
-choose. Settling the rag (below) is a separate, later add-on.
+choose. Settling the rag is a separate package, `settle-rag`; pass it
+`RAG_LANGUAGE` from this one for Icelandic.
 
 ```
 Vaðla·heið·ar·vega·vinnu·verk·færa·geymslu·skúr
@@ -225,7 +226,7 @@ It can't see inside components. Text you pass as children is reached; text a
 component renders on its own is not. For that, call `hyphenate()` in the server
 parent and pass the string down as a prop.
 
-### 3. The browser: settled rag, and text that only exists there
+### 3. The browser: text that only exists there
 
 ```tsx
 "use client";
@@ -237,73 +238,16 @@ function Caption({ text }: { text: string }) {
 ```
 
 Use this for text that only exists in the browser, like something a user
-types. The patterns load lazily the first time, <!-- size:patterns -->49.8 kB<!-- /size --> brotli for the core
-and its patterns; the full client entry is <!-- size:client -->7.9 kB<!-- /size --> brotli,
-and Settle rag alone (`SettledText`) <!-- size:rag -->5.4 kB<!-- /size -->. Until then the
+types. The patterns load lazily the first time, <!-- size:patterns -->49.9 kB<!-- /size --> brotli for the core
+and its patterns; the full client entry is <!-- size:client -->3 kB<!-- /size --> brotli. Until then the
 hook returns the text as it is, and so does it if the chunk fails to load. The
 next component that mounts tries the load again. A component that mounts after
 the load gets the processed text on its first render. Anything you can do on
 the server, do on the server.
 
-#### Settle the rag
-
-Soft hyphens say where a line may break; the browser still breaks each line
-at the last place that fits. Settling the rag chooses the breaks for the whole
-paragraph the way a typesetter would (a Knuth–Plass search with a cost for a
-ragged edge): lines that are full enough, no line jutting out past the one
-above or leaving a hole, short words such as `og` and `í` kept off line ends
-when that does not cost more elsewhere, few hyphens and no 3-letter pieces,
-and a last line of one word or the tail of a broken one only when the edge is
-better for it. It needs the real line widths, so it runs in the browser.
-
-```tsx
-"use client";
-import { SettledText } from "skiptingar/client";
-
-<SettledText as="p" text={hyphenatedOnTheServer} options={{ overhang: 0.5 }} />;
-```
-
-It forbids the breaks a greedy browser would otherwise take (a space becomes a
-no-break space, a soft hyphen is removed) and checks the result in a hidden
-copy; if the browser would not set it exactly, it changes nothing. It judges
-again when the width changes and when fonts load, and keeps the element on
-`text-wrap: wrap` meanwhile, since `pretty` and `balance` would move the breaks
-again. Options (`RagOptions`): `balance: true` for titles (as few lines as
-possible, made even, with short words at line ends, stacked hyphens and breaks
-away from a joint costing more), `overhang` (in em at 16px, 0.5 is about one letter) lets
-a line's last character go a little past the edge when that helps, `tighten`
-(in em, 0.05 is a good size) lets a line take that much less space at each
-word space, and `tightenLetters` (in em, 0.01) that much less at each
-character on a line with too few spaces for that, and `tightenWeight` is what
-tightening costs. Tightening is the typesetter's second cheat: it only
-tightens, never loosens, and a line uses it only when it would not fit
-otherwise and the paragraph is better for it. A line uses the overhang or
-tightening, never both, and the overhang comes first. All three are 0 (off)
-by default. The rest are the weights of each fault (`DEFAULT_RAG_OPTIONS`).
-
-- `SettledText` renders it. `useSettledRag(ref, text, options)` gives the text,
-  its overhangs and its tightened lines (`splitSettled` cuts them out to draw;
-  `splitHangs` does it for overhangs alone), and
-  `useRagPlan(ref, text, options)` the plan itself, for text split over
-  several elements (`applyRag`). Pass `enabled: false` to turn it off.
-- A span's `letter-spacing` replaces the one it inherits, so each overhang
-  carries the value to set, the element's own tracking included
-  (`Hang.letterSpacing`, and `letterSpacing` on its piece from `splitSettled`).
-  Draw a hang with `piece.letterSpacing ?? -piece.hang` px. Without it, as from
-  `bestBreaks`, that is `-hang`.
-- Without React: `const stop = settle(element, text, options)`.
-- `bestBreaks(text, metrics, options)` in the core is the search alone, given
-  where each character starts; it needs no browser.
-
-It measures the text as plain text in the element's own font, so inline
-markup with other metrics is not modelled. It changes nothing for justified
-or right-to-left text, an indented first line, preserved newlines or
-`hyphens: auto`. The first judgement runs after hydration, so a
-server-rendered paragraph can move slightly once.
-
 #### Hyphenate browser text on your server
 
-The hyphenation core and its patterns are <!-- size:patterns -->49.8 kB<!-- /size --> brotli. A page
+The hyphenation core and its patterns are <!-- size:patterns -->49.9 kB<!-- /size --> brotli. A page
 that has a server can skip them:
 mount the handler on a POST route and point the client at it once.
 
@@ -380,9 +324,6 @@ h2 {
   hyphens: manual;
 } /* the default: use our breaks, add none */
 ```
-
-Settled text sets its own `text-wrap: wrap` while settled; `pretty` and
-`balance` are for text you don't settle.
 
 Set `lang="is"`; browsers use it for language rules. Screen readers differ on
 soft hyphens (NVDA has been reported to announce them), so test with yours.

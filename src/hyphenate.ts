@@ -14,8 +14,8 @@ export type HyphenateOptions = {
   /**
    * Heading mode only, so experimental too. "only" (the default) breaks a word at its compound
    * joints alone, when one fits, which suits a heading the browser sets by
-   * itself. "prefer" keeps the other breaks too, for a heading that Settle
-   * rag balances: it weighs a break away from a joint as a cost and takes one
+   * itself. "prefer" keeps the other breaks too, for a heading set by a
+   * line breaker that weighs a break away from a joint as a cost and takes one
    * only when that saves a line.
    */
   joints?: "only" | "prefer";
