@@ -1,0 +1,53 @@
+# Publishes the package to npm when a `vX.Y.Z` tag is pushed. No token: npm
+# trusted publishing (OIDC) vouches for this workflow, and npm adds the
+# provenance statement itself. One-time setup and the release steps:
+# RELEASING.md.
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  id-token: write # npm trusted publishing (OIDC)
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false # never cache in a release build
+
+      # Trusted publishing needs npm 11.5.1 or newer. Node 24 may bundle older.
+      - name: Ensure npm 11.5.1 or newer
+        run: npm install -g npm@^11.5.1
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun test
+
+      - name: Tag matches package version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          tag_version="${TAG#v}"
+          package_version="$(node -p "require('./package.json').version")"
+          if [ "$tag_version" != "$package_version" ]; then
+            echo "::error::Tag version $tag_version differs from package.json version $package_version"
+            exit 1
+          fi
+
+      - name: Build
+        run: bun run build
+
+      - name: Publish
+        run: npm publish
