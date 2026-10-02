@@ -31,9 +31,11 @@ newer; the workflow sets both up.
 2. In `README.md`, replace the "Not on npm yet" wording with the install
    instructions. Do this for `0.1.0` only.
 3. Set `version` in `package.json`.
-4. Commit and push `master`.
-5. Tag the commit: `git tag vX.Y.Z`
-6. Push the tag: `git push origin vX.Y.Z`
+4. Run `bun run size` and `bun run tests:count`, since `sizes.json` and
+   `tests.json` ship in the package.
+5. Commit and push `master`.
+6. Tag the commit: `git tag vX.Y.Z`
+7. Push the tag: `git push origin vX.Y.Z`
 
 The workflow stops if the tag version differs from `package.json`. Watch the
 run in the Actions tab. When it is green, the version is on npm with a
