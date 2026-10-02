@@ -1,8 +1,9 @@
 # Releasing skiptingar
 
 This file is not in `files`, so it is not published. A release is a tag push:
-the workflow `.github/workflows/publish.yml` tests, builds and
-publishes with npm trusted publishing. There is no npm token anywhere.
+the workflow `.github/workflows/publish.yml` tests, builds, checks that
+every built entry loads (`check:dist`) and publishes with npm trusted
+publishing. There is no npm token anywhere.
 
 ## One time
 
@@ -20,22 +21,19 @@ GitHub Actions. Fill in:
 Then, under Settings → Publishing access, pick "Require two-factor
 authentication and disallow tokens".
 
-The package name already exists on npm (a `0.0.0` placeholder), so the settings
-page is there. Trusted publishing needs npm 11.5.1 or newer and Node 22.14 or
-newer; the workflow sets both up.
+Trusted publishing needs npm 11.5.1 or newer and Node 22.14 or newer; the
+workflow sets both up.
 
 ## Each release
 
-1. In `CHANGELOG.md`, change the top heading to the version and date. For
-   `0.1.0`, replace `(not released)`.
-2. In `README.md`, replace the "Not on npm yet" wording with the install
-   instructions. Do this for `0.1.0` only.
-3. Set `version` in `package.json`.
-4. Run `bun run size` and `bun run tests:count`, since `sizes.json` and
-   `tests.json` ship in the package.
-5. Commit and push `master`.
-6. Tag the commit: `git tag vX.Y.Z`
-7. Push the tag: `git push origin vX.Y.Z`
+1. In `CHANGELOG.md`, change the top heading to the version and date.
+2. Set `version` in `package.json`.
+3. Run `bun run size` and `bun run tests:count`, since `sizes.json` and
+   `tests.json` ship in the package. Then run `bun run build` and
+   `bun run check:dist`, which CI and the publish workflow also run.
+4. Commit and push `master`.
+5. Tag the commit: `git tag vX.Y.Z`
+6. Push the tag: `git push origin vX.Y.Z`
 
 The workflow stops if the tag version differs from `package.json`. Watch the
 run in the Actions tab. When it is green, the version is on npm with a

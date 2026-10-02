@@ -24,7 +24,7 @@ export type HyphenateProps = Omit<HyphenateOptions, "hyphenChar"> & {
  * Hyphenates Icelandic text in its children. Renders no wrapper element.
  *
  * ```tsx
- * <Hyphenate mode="heading">
+ * <Hyphenate>
  *   <h1>Hraðbrautarframkvæmdir á <em>landsbyggðinni</em></h1>
  * </Hyphenate>
  * ```

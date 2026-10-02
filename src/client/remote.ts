@@ -1,7 +1,7 @@
 /**
  * Hyphenation by asking a server instead of loading the patterns: after
  * `configureSkiptingar({ endpoint })`, the hooks send their texts to that
- * endpoint (`handleSkiptingarRequest` on the server) and the 47 kB pattern
+ * endpoint (`handleSkiptingarRequest` on the server) and the pattern
  * chunk is never downloaded. Requests made in the same tick go out as one,
  * answers are cached, and if the endpoint fails (the network, or a 5xx) the
  * hooks fall back to loading the patterns, for the rest of the page's life.

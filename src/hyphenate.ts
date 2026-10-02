@@ -7,8 +7,13 @@ import { findProtectedMask, isProtected } from "./url";
 export type HyphenateOptions = {
   /**
    * "body" (the default) breaks a word wherever the rules allow. "heading" is
-   * an experimental, opinionated mode for large type: it breaks a word at its
-   * compound joints when one fits. It is not part of the v1 API and may change.
+   * an experimental, opinionated mode for large type. It uses the heading
+   * limits (`minWordLength` 12, `leftMin` 3, `rightMin` 4) and breaks a word
+   * at its compound joints when one fits. Joints are known only for a word
+   * with a `=` in your `dictionary` and, with `exceptions: true`, for a word
+   * in the exception list, a name with a `NAME_ENDINGS` ending or a word with
+   * a linking syllable. Without joints, heading mode only changes the limits.
+   * It is not part of the v1 API and may change.
    */
   mode?: "body" | "heading";
   /**
@@ -341,10 +346,11 @@ export function hyphenateWord(word: string, options: HyphenateOptions = {}): num
 /**
  * The breaks of one word and the compound joints among them, both as "after N
  * letters", ascending. `breaks` is what `hyphenateWord` gives in body mode.
- * `joints` is where heading mode would prefer to break: the `=` joints of a
- * listed word, the `NAME_ENDINGS` joint of a capitalised word and, with the
- * experimental typographic rules, the break after a linking syllable
- * (`stjórnar|völd`). It is always a subset of `breaks`.
+ * `joints` is where heading mode would prefer to break. They come from a `=`
+ * in a `dictionary` line. With `exceptions: true` they also come from the
+ * exception list, the `NAME_ENDINGS` joint of a capitalised word and the break
+ * after a linking syllable (`stjórnar|völd`, typographic rules). Otherwise
+ * `joints` is empty. It is always a subset of `breaks`.
  * The limits (`leftMin`, `rightMin`) apply to both.
  */
 export function analyzeWord(

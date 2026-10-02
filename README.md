@@ -118,8 +118,8 @@ badly:
 | Rule | Example | Option |
 | --- | --- | --- |
 | Number and unit | `1.000 kr.`, `5 km`, `20 °C` | `units`, on |
-| Month and year | `sept. 2027`, `ág. 2026` | `dates`, on |
-| Ordinal | `30. september`, `1. sæti` | `ordinals`, on |
+| Day, month and year | `30. september`, `sept. 2027`, `ág. 2026` | `dates`, on |
+| Ordinal | `1. sæti`, `3. grein` | `ordinals`, on |
 | Abbreviation and number | `nr. 5`, `bls. 12`, `kl. 14.30`, `kt. 011390-2939` | `prefixes`, on |
 | Kennitala and phone | `011390-2939`, `588-5522`, `+354 588 5522` never split | `numbers`, on |
 | Title and initial | `dr. Jón`, `Jón G. Sigurðsson` | `titles`, on |
@@ -129,8 +129,9 @@ badly:
 | Last two words | no one-word last line | `lastWords`, off |
 
 `{ preset: "typographic" }` also turns on the two rules that are off by
-default. Prefer `text-wrap: pretty` to `lastWords` where the browser supports
-it.
+default. This `typeset` preset is not the same thing as `rules: "typographic"`
+in `hyphenate()`, which gives better breaks. Prefer `text-wrap: pretty` to
+`lastWords` where the browser supports it.
 
 For a quote inside a quote, Icelandic uses `„…“` again (Ritreglur §28.1), so
 type it that way. Standard abbreviations (`t.d.`, `o.s.frv.`) need no help:
@@ -149,9 +150,9 @@ nothing to the browser.
 
 | Entry | Where | What |
 | --- | --- | --- |
-| `skiptingar` | Anywhere: Node, the edge, a build step | `hyphenate()`, `typeset()` and `processSegments()`: plain functions on strings |
+| `skiptingar` | Anywhere: Node, the edge, a build step | `hyphenate()`, `typeset()`, `processSegments()` and `analyzeWord()`: plain functions on strings, and `handleSkiptingarRequest()`, the endpoint for the client |
 | `skiptingar/react` | React Server Components | `<Hyphenate>` (all three layers) and `<Typeset>` (locale details only) |
-| `skiptingar/client` | The browser | `useHyphenate()` for text that exists only in the browser, and `<CleanCopy />` |
+| `skiptingar/client` | The browser | `useHyphenate()` and its sibling hooks for text that exists only in the browser, `configureSkiptingar()` to use a server endpoint, and `<CleanCopy />` |
 
 ## API
 
@@ -247,8 +248,10 @@ import { Hyphenate } from "skiptingar/react";
 
 `<Hyphenate>` walks the JSX you give it and changes only text. It hyphenates,
 and, unless you pass `typeset={false}`, adds the locale details; `typeset={{
-… }}` sets their rules. `<Typeset>` adds the locale details only. Quotes pair
-across inline elements, and a word split by inline markup
+… }}` sets their rules. `<Typeset>` adds the locale details only.
+`<Hyphenate>` takes the `hyphenate()` options except `hyphenChar`, plus
+`typeset` and `lang`. Quotes pair across inline elements, and a word split by
+inline markup
 (`hest<span>arnir</span>`) is hyphenated as one word.
 
 It skips `code`, `pre`, `kbd`, `samp`, `var`, `script`, `style`, `textarea`,

@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Docs and comments only, no code changes.
+- Heading mode and `analyzeWord` docs now say when joints are found: from a
+  `dictionary` `=` line, and with `exceptions: true` also from the exception
+  list, name endings and linking syllables. Otherwise there are none.
+- README: `30. september` moved to the date row, since `dates` binds day and
+  month; a note that the `typeset` preset is not `rules: "typographic"`; the
+  entry points table lists `analyzeWord()`, `handleSkiptingarRequest()`,
+  the client hooks, `configureSkiptingar()` and `<CleanCopy />`; the
+  `<Hyphenate>` props are described.
+- RELEASING: removed the steps that applied only to `0.1.0`, and added the
+  build and `check:dist` step.
+
 ## 0.1.2 (2026-10-02)
 
 - README rewritten to match the package page: three layers on the server
