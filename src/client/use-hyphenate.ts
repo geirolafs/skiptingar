@@ -32,9 +32,9 @@ function useWorker() {
 }
 
 /**
- * Hyphenates (and typesets) several strings in the browser, each with its
- * own options: at the endpoint set with `configureSkiptingar`, or with the
- * core, which loads lazily. Until the answers are in, on the server and if
+ * Hyphenates and typesets (unless `typeset: false`) several strings in the
+ * browser, each with its own options: at the endpoint set with
+ * `configureSkiptingar`, or with the core, which loads lazily. Until the answers are in, on the server and if
  * every way fails, each text is returned as given and `ready` is false.
  * Options are compared by value.
  */
@@ -83,8 +83,8 @@ function jobId(text: string, key: string): string {
 }
 
 /**
- * One string, hyphenated and typeset, with `ready` once it is processed: the
- * text as given until then. See `useHyphenateAll`.
+ * One string, hyphenated and typeset (unless `typeset: false`), with `ready`
+ * once it is processed: the text as given until then. See `useHyphenateAll`.
  */
 export function useHyphenateResult(
   text: string,
@@ -95,10 +95,10 @@ export function useHyphenateResult(
 }
 
 /**
- * Hyphenates (and typesets) a string in the browser: at the endpoint set
- * with `configureSkiptingar`, or with the core, which loads lazily. Until it
- * is processed, on the server, and if every way fails, the hook returns the
- * text as given. A component that mounts after the core has loaded, or after
+ * Hyphenates and typesets (unless `typeset: false`) a string in the browser:
+ * at the endpoint set with `configureSkiptingar`, or with the core, which
+ * loads lazily. Until it is processed, on the server, and if every way
+ * fails, the hook returns the text as given. A component that mounts after the core has loaded, or after
  * the endpoint has answered the same text, gets the processed text on its
  * first render. Options are compared by value.
  */

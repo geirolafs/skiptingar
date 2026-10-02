@@ -1,7 +1,11 @@
 import type { HyphenateOptions, TypesetOptions } from "../index";
 
 export type UseHyphenateOptions = HyphenateOptions & {
-  /** `true` uses the default typeset rules, `false` hyphenates only. Default `true`. */
+  /**
+   * Typesetting is on by default. `true` or leaving it out uses the default
+   * typeset rules, an options object sets them, `false` hyphenates only.
+   * Default `true`.
+   */
   typeset?: boolean | TypesetOptions;
 };
 
@@ -27,10 +31,24 @@ function sortKeys(value: unknown): unknown {
 /**
  * A string that is equal for equal options, whatever the key order (nested
  * objects too) and object identity. React can use it as a dependency, so an
- * inline options object does not cause new work on every render.
+ * inline options object does not cause new work on every render. Options that
+ * give the same output share a key: typeset left out, `true` and `{}` are all
+ * the default rules. `typeset: false` stays apart.
  */
 export function optionsKey(options: object | undefined): string {
-  return JSON.stringify(sortKeys(options ?? {}));
+  const sorted = sortKeys(options ?? {}) as Record<string, unknown>;
+  const { typeset } = sorted;
+  const isDefaultTypeset =
+    typeset === true ||
+    (typeof typeset === "object" &&
+      typeset !== null &&
+      !Array.isArray(typeset) &&
+      Object.keys(typeset).length === 0);
+  if (isDefaultTypeset) {
+    const { typeset: _default, ...rest } = sorted;
+    return JSON.stringify(rest);
+  }
+  return JSON.stringify(sorted);
 }
 
 /** Runs the core on one string, with options from `optionsKey`. */

@@ -5,17 +5,30 @@ import { DATA_LEFT_MIN, DATA_RIGHT_MIN } from "./generated/data";
 import { findProtectedMask, isProtected } from "./url";
 
 export type HyphenateOptions = {
-  /** "body" for running text, "heading" for large type. Default "body". */
+  /**
+   * "body" (the default) breaks a word wherever the rules allow. "heading" is
+   * an experimental, opinionated mode for large type: it breaks a word at its
+   * compound joints when one fits. It is not part of the v1 API and may change.
+   */
   mode?: "body" | "heading";
   /**
-   * Heading mode only. "only" (the default) breaks a word at its compound
+   * Heading mode only, so experimental too. "only" (the default) breaks a word at its compound
    * joints alone, when one fits, which suits a heading the browser sets by
    * itself. "prefer" keeps the other breaks too, for a heading that Settle
    * rag balances: it weighs a break away from a joint as a cost and takes one
    * only when that saves a line.
    */
   joints?: "only" | "prefer";
-  /** "typographic" is conservative, "ritreglur" follows the spelling rules. */
+  /**
+   * "typographic" (the default) is new and experimental, and may change. It
+   * drops legal breaks that read badly: body words need 6 letters or more, with
+   * at least 2 letters before a break and 3 after; the break before a linking
+   * syllable (`ar`, `ur`, `is`, `ir`) goes, so `sveitarstjórnarkosningum` keeps
+   * `sveitar·stjórnar·kosn·ingum`; and a capitalised foreign name with c, q or
+   * w (`Icelandair`) stays whole. Pass "ritreglur" for the official spelling
+   * rules alone: words of 4 letters or more, at least 1 letter before a break
+   * and 2 after.
+   */
   rules?: "typographic" | "ritreglur";
   /** Words shorter than this many letters are left alone. Overrides the preset. */
   minWordLength?: number;
@@ -26,28 +39,33 @@ export type HyphenateOptions = {
   /** Character inserted at each break. Default is the soft hyphen U+00AD. */
   hyphenChar?: string;
   /**
-   * Use the exception list and the `NAME_ENDINGS` joints (heading mode).
-   * `false` gives raw pattern output. Default true.
+   * Experimental, for a later opinionated version, not part of v1. `true` also
+   * uses the bundled exception list (words whose breaks are marked by hand and
+   * replace the pattern breaks) and the `NAME_ENDINGS` joints (heading mode).
+   * The default, `false`, gives the 2020 patterns alone. The list may change.
    */
   exceptions?: boolean;
   /**
    * Your own words, in the exception list's format: one word a line,
    * lowercase, `-` for a break and `=` for a compound joint
-   * (`"forn=aldar=frægð"`). They win over the bundled list and the patterns,
-   * also with `exceptions: false`. A malformed line throws.
+   * (`"forn=aldar=frægð"`). They are your own choice and win over the bundled
+   * list and the patterns, whether `exceptions` is on or not. A malformed line
+   * throws.
    */
   dictionary?: readonly string[];
   /**
-   * Leave all-caps words of `ACRONYM_LENGTH.min` to `ACRONYM_LENGTH.max`
+   * Experimental, for a later opinionated version, not part of v1. `true`
+   * leaves all-caps words of `ACRONYM_LENGTH.min` to `ACRONYM_LENGTH.max`
    * letters alone, so `UNESCO` and `NATO` never break. Longer all-caps words
-   * still break. Default true.
+   * still break. The default, `false`, lets the patterns break them like any
+   * other word.
    */
   skipAcronyms?: boolean;
 };
 
 /**
- * The range of all-caps word lengths that count as acronyms. This is a design
- * choice, not a spelling rule: `UNESCO`, `UNICEF`, `NATO` and `OECD` fall
+ * The range of all-caps word lengths that count as acronyms when
+ * `skipAcronyms` is on. This is a design choice, not a spelling rule: `UNESCO`, `UNICEF`, `NATO` and `OECD` fall
  * inside it, `KEFLAVÍKURFLUGVÖLLUR` does not.
  */
 export const ACRONYM_LENGTH = { min: 4, max: 8 } as const;
@@ -59,7 +77,7 @@ export const ACRONYM_LENGTH = { min: 4, max: 8 } as const;
  * these and the part before it has at least `MIN_NAME_STEM` letters, heading
  * mode prefers that boundary, but only when the patterns already allow a break
  * there. It never adds a break and never changes body mode (`majónes` stays
- * `maj-ónes`). Inflected forms whose base changes are listed too (`firði`,
+ * `maj-ón-es`). Inflected forms whose base changes are listed too (`firði`,
  * `fjarðar`, `dóttur`).
  */
 export const NAME_ENDINGS: readonly string[] = [
@@ -100,8 +118,9 @@ const MIN_NAME_STEM = 3;
  * Two-letter syllables that usually link the parts of a compound: the genitive
  * of the first part (`stjórnar-`, `Akur-`, `ráðuneytis-`, `fyrir-`). The
  * patterns allow a break on both sides of one, and the break before it splits
- * the genitive from its stem: `stjórn-arvöld`, `fornald-arfrægð`. Typographic
- * rules drop that break and keep the one after (`stjórnar-völd`).
+ * the genitive from its stem: `stjórn-arvöld`, `fornald-arfrægð`. The
+ * experimental typographic rules drop that break and keep the one after
+ * (`stjórnar-völd`).
  */
 const LINKING_SYLLABLES: ReadonlySet<string> = new Set(["ar", "ur", "is", "ir"]);
 
@@ -175,6 +194,9 @@ function isAcronym(word: string, length: number): boolean {
 
 type Limits = { minWordLength: number; leftMin: number; rightMin: number };
 
+/** The rule set used when `rules` is not given: the new typographic rules. */
+const DEFAULT_RULES: NonNullable<HyphenateOptions["rules"]> = "typographic";
+
 const PRESETS = {
   typographic: {
     body: { minWordLength: 6, leftMin: 2, rightMin: 3 },
@@ -199,7 +221,7 @@ function isSkippedToken(token: string): boolean {
 }
 
 function resolveLimits(options: HyphenateOptions): Limits {
-  const preset = PRESETS[options.rules ?? "typographic"][options.mode ?? "body"];
+  const preset = PRESETS[options.rules ?? DEFAULT_RULES][options.mode ?? "body"];
   return {
     minWordLength: options.minWordLength ?? preset.minWordLength,
     // A break needs at least one letter on each side.
@@ -245,18 +267,18 @@ function wordCandidates(
     return undefined;
   }
 
-  if (options.skipAcronyms !== false && isAcronym(chars.join(""), length)) {
+  if (options.skipAcronyms === true && isAcronym(chars.join(""), length)) {
     return undefined;
   }
 
   const lower = lowerKeepingLength(chars);
-  const useLists = options.exceptions !== false;
+  const useLists = options.exceptions === true;
   const entry = lookupException(lower, {
     dictionary: options.dictionary,
     bundled: useLists,
   });
   const fits = (position: number) => position >= leftMin && length - position >= rightMin;
-  const typographic = (options.rules ?? "typographic") === "typographic";
+  const typographic = (options.rules ?? DEFAULT_RULES) === "typographic";
   // A foreign name stays whole under typographic rules, unless a list gives
   // it breaks.
   const capitalised = chars[0] !== lower[0];
@@ -320,9 +342,9 @@ export function hyphenateWord(word: string, options: HyphenateOptions = {}): num
  * The breaks of one word and the compound joints among them, both as "after N
  * letters", ascending. `breaks` is what `hyphenateWord` gives in body mode.
  * `joints` is where heading mode would prefer to break: the `=` joints of a
- * listed word, or, with typographic rules, the break after a linking
- * syllable (`stjórnar|völd`) and the `NAME_ENDINGS` joint. It is always a
- * subset of `breaks`.
+ * listed word, the `NAME_ENDINGS` joint of a capitalised word and, with the
+ * experimental typographic rules, the break after a linking syllable
+ * (`stjórnar|völd`). It is always a subset of `breaks`.
  * The limits (`leftMin`, `rightMin`) apply to both.
  */
 export function analyzeWord(

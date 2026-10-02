@@ -47,9 +47,18 @@ export function cleanTextNodes(nodes: Iterable<TextNodeLike>): void {
   }
 }
 
-/** True when the text has a soft hyphen, a no-break space or a non-breaking hyphen. */
+/**
+ * True when the text has a soft hyphen, a no-break space, a non-breaking
+ * hyphen or a word joiner (the invisible character the `dashes` rule puts
+ * after an en dash).
+ */
 export function needsCleaning(text: string): boolean {
-  return text.includes("\u00AD") || text.includes("\u00A0") || text.includes("\u2011");
+  return (
+    text.includes("\u00AD") ||
+    text.includes("\u00A0") ||
+    text.includes("\u2011") ||
+    text.includes("\u2060")
+  );
 }
 
 /** The part of a copy event target that the decision needs. */
@@ -81,7 +90,8 @@ export type CleanClipboard = { text: string; html: string };
 
 /**
  * Decides what to put on the clipboard. Returns `null` when the selection has
- * no soft hyphen or no-break space, so the browser can copy it as it is.
+ * no soft hyphen, no-break space, non-breaking hyphen or word joiner, so the
+ * browser can copy it as it is.
  * `getCleanHtml` must return HTML that is already clean. It is only called
  * when cleaning is needed.
  */

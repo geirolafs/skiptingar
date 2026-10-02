@@ -6,8 +6,9 @@ import { toFragment } from "./walk";
 
 export type HyphenateProps = Omit<HyphenateOptions, "hyphenChar"> & {
   /**
-   * Typeset rules (no-break spaces, Icelandic quotes). `true` uses the
-   * defaults, `false` hyphenates only. Default `true`.
+   * Typeset rules (no-break spaces, Icelandic quotes and dashes). On by
+   * default: `true` uses the defaults, an options object sets them, `false`
+   * hyphenates only. Default `true`.
    */
   typeset?: boolean | TypesetOptions;
   /**

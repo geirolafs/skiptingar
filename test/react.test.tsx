@@ -167,6 +167,24 @@ describe("<Hyphenate>", () => {
     }
   });
 
+  test("typeset is on by default: left out, it hyphenates and typesets", () => {
+    const html = render(
+      <Hyphenate>
+        <p>Hann sagði "orð" um {LONG}, 1.000 kr.</p>
+      </Hyphenate>
+    );
+    expect(html).toContain("„orð“");
+    expect(html).toContain(`1.000${NB}kr.`);
+    expect(html).toContain(SHY);
+    expect(html).toBe(
+      render(
+        <Hyphenate typeset>
+          <p>Hann sagði "orð" um {LONG}, 1.000 kr.</p>
+        </Hyphenate>
+      )
+    );
+  });
+
   test("typeset={false} leaves straight quotes and hyphenates", () => {
     const html = render(
       <Hyphenate typeset={false}>

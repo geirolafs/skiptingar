@@ -1,5 +1,12 @@
 import { describe, expect, mock, test } from "bun:test";
-import { analyzeWord, handleSkiptingarRequest, hyphenate } from "../src";
+import {
+  analyzeWord,
+  handleSkiptingarRequest,
+  hyphenate,
+  resolveTypeset,
+  runRemoteItems,
+  typeset,
+} from "../src";
 import {
   configureSkiptingar,
   remoteResult,
@@ -27,6 +34,46 @@ describe("handleSkiptingarRequest", () => {
       hyphenate("Hraðbrautarframkvæmdir"),
       analyzeWord("vítamín", { rules: "ritreglur" }),
     ]);
+  });
+
+  test("typeset is on by default: a request typesets unless it says typeset: false", async () => {
+    const text = 'Hann sagði "orð" um Hraðbrautarframkvæmdir, 1.000 kr.';
+    const response = await handleSkiptingarRequest(
+      post({
+        items: [
+          { op: "process", text },
+          { op: "process", text, options: {} },
+          { op: "process", text, options: { typeset: false } },
+          { op: "process", text, options: { typeset: true } },
+          { op: "process", text, options: { typeset: { quotes: false } } },
+        ],
+      })
+    );
+    const { results } = (await response.json()) as { results: string[] };
+    const typesetOut = hyphenate(typeset(text));
+    expect(results[0]).toBe(typesetOut);
+    expect(results[1]).toBe(typesetOut);
+    expect(results[3]).toBe(typesetOut);
+    expect(results[0]).toContain("„orð“");
+    expect(results[2]).toBe(hyphenate(text));
+    expect(results[2]).toContain('"orð"');
+    expect(results[4]).toContain('"orð"');
+    expect(results[4]).toContain("1.000\u00A0kr.");
+  });
+
+  test("runRemoteItems follows the same default", () => {
+    const text = 'Hann sagði "orð"';
+    expect(runRemoteItems([{ op: "process", text }])).toEqual([hyphenate(typeset(text))]);
+    expect(
+      runRemoteItems([{ op: "process", text, options: { typeset: false } }])
+    ).toEqual([hyphenate(text)]);
+  });
+
+  test("resolveTypeset is on unless turned off", () => {
+    expect(resolveTypeset(undefined)).toEqual({});
+    expect(resolveTypeset(false)).toBe(false);
+    expect(resolveTypeset(true)).toEqual({});
+    expect(resolveTypeset({ dashes: true })).toEqual({ dashes: true });
   });
 
   test("refuses other methods, bad bodies and oversized requests", async () => {

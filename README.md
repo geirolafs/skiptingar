@@ -1,8 +1,26 @@
 # skiptingar
 
-Icelandic text set the way a typesetter would: hyphenation, a calm ragged
-edge, titles that break at the right joint, and numbers, dates and names kept
-together.
+Icelandic text set the way a typesetter would: hyphenation, and numbers,
+dates and names kept together.
+
+Version 1 is three layers, and they are the defaults:
+
+1. **Hyphenation.** The 2020 letter patterns from the Árni Magnússon
+   Institute, put into the text as soft hyphens on the server. The new
+   **typographic rules** are on by default: they drop legal breaks that read
+   badly (see below). They are experimental and may change; pass
+   `rules: "ritreglur"` for the official Ritreglur minimums alone.
+2. **Typeset.** No-break spaces and Icelandic quotes, also on the server
+   (en dashes in ranges are one of the rules you can add). On by default in
+   the components, the hooks and the handler; pass `typeset={false}` (or
+   `typeset: false`) to hyphenate only.
+3. **Wrapping.** CSS `text-wrap: pretty` for body text and `balance` for
+   titles. This is CSS you add, not part of the package, and you can leave it
+   out (see "CSS to pair it with").
+
+Because the work is done on the server, the browser runs no hyphenation or
+typeset code (0 kB), every browser gets the same places to break, and
+`<CleanCopy />` puts clean text on the clipboard.
 
 Long Icelandic compounds overflow narrow columns and headings, and browsers
 mostly can't help. Only Firefox ships an Icelandic hyphenation dictionary;
@@ -10,10 +28,11 @@ Chrome, Edge and Safari have none on any system (MDN browser-compat-data,
 `hyphens.language_icelandic`). `skiptingar` puts soft hyphens into the text
 itself, on the server, so every browser gets the same places to break, and
 hyphenating ships no JavaScript. Which of those places a line uses is still up
-to the browser and the font, unless you settle the rag (layer 3).
+to the browser and the font. CSS `text-wrap` (the third v1 layer) helps it
+choose. Settling the rag (below) is a separate, later add-on.
 
 ```
-Vaðla·heiðar·vega·vinnu·verk·færa·geymslu·skúr
+Vaðla·heið·ar·vega·vinnu·verk·færa·geymslu·skúr
 Hann sagði „Verð 1.000⍽kr. frá 30.⍽september“
 ```
 
@@ -25,11 +44,12 @@ Not on npm yet. It lives in a website repo while the API settles; the
 `package.json` is marked private so it can't be published by accident. To
 try it in another project, build it (`bun run build` in this folder writes
 `dist/` with the three entry points and their types) and depend on the
-folder. It has no runtime dependencies. React is only needed for the React
-and client entry points. `bun run size` prints what each entry costs a
+folder. It has no runtime dependencies. React 18 or newer is only needed for
+the React and client entry points (they use no React 19-only API; the tests
+run on React 19). `bun run size` prints what each entry costs a
 browser, and `bun run bench` how fast the core runs.
 
-## Three layers
+## Three ways to use it
 
 ### 1. Plain functions, anywhere
 
@@ -47,58 +67,57 @@ typeset('Verð 1.000 kr. frá 30. september, sagði "hann"');
 
 | Option                                 | Default         |                                                                               |
 | -------------------------------------- | --------------- | ----------------------------------------------------------------------------- |
-| `mode`                                 | `"body"`        | `"heading"` only breaks long words, and at compound joints when it finds them |
-| `rules`                                | `"typographic"` | `"ritreglur"` allows every break the patterns allow, including `ó-lán`        |
-| `joints`                               | `"only"`        | heading mode: `"prefer"` also keeps other breaks, for Settle rag to weigh     |
-| `minWordLength`, `leftMin`, `rightMin` | from the preset | override one number, keep the rest                                            |
+| `rules`                                | `"typographic"` | new, experimental: drops breaks that read badly. `"ritreglur"` turns it off   |
+| `minWordLength`, `leftMin`, `rightMin` | from `rules`    | override one number, keep the rest (`4`, `1`, `2` with `"ritreglur"`)         |
 | `hyphenChar`                           | `"­"`           | use `"-"` to see the breaks                                                   |
-| `exceptions`                           | `true`          | uses the exception list and the joints; `false` gives raw patterns            |
-| `dictionary`                           | none            | your own words in the exception list's format, e.g. `["forn=aldar=frægð"]`    |
-| `skipAcronyms`                         | `true`          | all-caps words of 4 to 8 letters (`UNESCO`, `NATO`) never break               |
+| `dictionary`                           | none            | your own words, e.g. `["forn=aldar=frægð"]` (format below)                    |
 
-The presets:
+The official spelling rules (Ritreglur §33) allow a break in words of 4 letters
+or more, with at least 1 letter before it and 2 after. The 1 and the 2 come
+from the data: the Árni Magnússon patterns set `LEFTHYPHENMIN 1` and
+`RIGHTHYPHENMIN 2`. The 4-letter minimum word length is skiptingar's own
+choice. That is `rules: "ritreglur"`.
 
-|               | body                                                   | heading                            |
-| ------------- | ------------------------------------------------------ | ---------------------------------- |
-| `typographic` | words of 6+ letters, 2 letters before a break, 3 after | 12+ letters, 3 before, 4 after     |
-| `ritreglur`   | 4+ letters, 1 before, 2 after (see below)              | same limits, compound joints first |
+The default, `rules: "typographic"`, is new and under development, and it may
+give odd results. Turn it off with `rules: "ritreglur"` if it does. It drops
+legal breaks that read badly:
 
-Ritreglur §33.1 prefers to break a compound at its joint. The patterns know
-syllables, not joints, so `typographic` adds two rules on top of them:
+| Rule                      | Ritreglur                    | Typographic (default)     |
+| ------------------------- | ---------------------------- | ------------------------- |
+| Room: body words need 6+ letters, 2 before and 3 after a break | `ó·lán` | `ólán` |
+| Linking syllable (`ar`, `ur`, `is`, `ir`): no break before it | `sveit·ar·stjórn·ar·kosn·ing·um` | `sveitar·stjórnar·kosn·ingum` |
+| Foreign names with c, q or w stay whole | `Ic·elandair`  | `Icelandair`              |
 
-- **Linking syllables.** When the patterns allow a break on both sides of
-  `ar`, `ur`, `is` or `ir` and a part of 3 or more letters follows, the break
-  before it is dropped: `stjórnar-völd`, not `stjórn-ar-völd`;
-  `sveitar-stjórnar-kosningum`, not `sveit-ar-stjórn-ar-…`. The break that is
-  kept counts as a compound joint.
-- **Name endings.** `NAME_ENDINGS` is an exported list of productive second
-  elements of place names and patronymics (`-eyri`, `-dóttir`, `-son`,
-  `-staðir`, `-vík`, and so on). In a capitalised word that ends with one
-  (with 3 or more letters before it), that boundary counts as a joint, when
-  the patterns allow a break there (`Akur-eyri`, `Sigurðar-dóttir`).
+Not part of v1, and off or absent by default: a list of corrected words, a
+skip for all-caps acronyms and a heading mode that breaks a title at its
+compound joints. Their options (`exceptions`, `skipAcronyms`,
+`mode: "heading"`) are still in the code, and they may come in a later
+version.
 
-- **Foreign names.** A capitalised word with c, q or w (letters Icelandic
-  spelling does not use) stays whole: `Icelandair`, not `Ic-elandair`. Give
-  one breaks with the exception list or `dictionary`.
+The patterns know syllables, not compounds, so they may break inside a
+compound's parts, and they miss some legal breaks (`ástríða`, `vefslóð`). Your
+own `dictionary` can add those. A line in it is one lowercase word where `-`
+is a break and `=` is a compound joint, which is a break too:
 
-In heading mode a word breaks only at its joints (the `=` of a listed word,
-or the two rules above), as long as one fits the limits; otherwise it keeps
-its other breaks (`Aðal-steinsson`). Body mode keeps every break the limits
-allow (`majónes` stays `maj-ónes`). `ritreglur` uses neither rule.
-`ACRONYM_LENGTH` holds the 4 to 8 letter range for `skipAcronyms`; it is a
-design choice, not a spelling rule.
+```
+þjóð=fé-lags=um=ræða
+```
 
-The `ritreglur` limits of 1 letter before and 2 after come from the data: the
-Árni Magnússon patterns set `LEFTHYPHENMIN 1` and `RIGHTHYPHENMIN 2`. The
-4-letter minimum word length is skiptingar's own choice.
+A word in your `dictionary` replaces the pattern result, and a malformed line
+throws.
 
-`typographic` never produces a break that the `ritreglur` preset does not
-offer. It only drops the ones that look bad. Both follow the patterns, which
-miss some legal breaks (`ástríða`, `vefslóð`); the exception list and your
-`dictionary` add those.
+Typeset is on by default where it is a switch. `hyphenate()` never typesets
+(it has no `typeset` option), and `typeset()` never hyphenates. The React
+components (`<Hyphenate>`), the client hooks and the server handler hyphenate
+and typeset unless you pass `typeset={false}` (or `typeset: false`);
+`typeset: true` or an options object sets the rules. `processSegments` does
+what you ask: it typesets only when you give it `typeset`. `<Typeset>` and
+`typeset()` typeset, because that is all they do.
 
-`typeset(text, options)` only swaps characters one for one (after turning the
-text into NFC). Every rule has an option of its own:
+`typeset(text, options)` swaps characters one for one (after turning the text
+into NFC), with one difference: the `dashes` rule also adds an invisible word
+joiner (U+2060) after the en dash of a range, so `1990-2000` becomes
+`1990–⁠2000`, one character longer. Every rule has an option of its own:
 
 | Rule                 | Example                                                                                        | Option              |
 | -------------------- | ---------------------------------------------------------------------------------------------- | ------------------- |
@@ -123,8 +142,8 @@ no spaces and so never break across lines.
 
 `hyphenate()`, `typeset()` and the React components turn their input into NFC
 first, so a decomposed `á` (`a` plus a combining accent) still hyphenates and
-typesets. The text that comes back is NFC. Apart from that, `typeset()` only
-swaps characters one for one.
+typesets. The text that comes back is NFC. Apart from that, `typeset()` swaps
+characters one for one, apart from the word joiner that `dashes` adds.
 
 Both functions leave URLs, email addresses and domains alone, and running
 them twice gives the same result as running them once.
@@ -139,7 +158,7 @@ source code: `SOFT_HYPHEN` (U+00AD), `NO_BREAK_SPACE` (U+00A0) and
 import { processSegments } from "skiptingar";
 
 processSegments(["Hraðbrautar", "framkvæmdir"], { hyphenate: {}, typeset: {} });
-// ["Hrað­brautar­", "fram­kvæmdir"]
+// ["Hrað­braut­ar­", "fram­kvæmd­ir"]
 ```
 
 This is what `<Hyphenate>` runs on each run of text. Give it the text pieces
@@ -150,7 +169,8 @@ split by markup breaks like the whole word, and a web address split by markup
 is still found. A break on the border between two pieces goes at the end of the
 earlier piece. It returns one string for each piece. Pass `false`, or leave out
 `hyphenate` or `typeset`, to skip that step. `resolveTypeset(true | false |
-options)` turns the `typeset` prop of the components into these options.
+options)` turns the `typeset` prop of the components into these options; left
+out, it is on (`{}`).
 `breakOffsets(text, options)` is the lower level: the offsets where
 `hyphenate()` would insert a break.
 
@@ -159,31 +179,31 @@ options)` turns the `typeset` prop of the components into these options.
 ```ts
 import { analyzeWord } from "skiptingar";
 
-analyzeWord("vítamín", { rules: "ritreglur" });
-// { breaks: [4], joints: [4] }
+analyzeWord("hraðbraut");
+// { breaks: [4], joints: [] }
 ```
 
-`breaks` is what `hyphenateWord()` returns in body mode: every break the word
-allows, as "after N letters". `joints` is where heading mode prefers to break:
-the `=` joints of a listed word, or, with typographic rules, the breaks after
-linking syllables and the `NAME_ENDINGS` joint. It is always a subset of
-`breaks`. Both obey `leftMin` and `rightMin`.
+`breaks` is what `hyphenateWord()` returns: every break the word allows, as
+"after N letters". `joints` are the compound joints the word is known to have,
+which the patterns do not give: the `=` marks of a word in your `dictionary`
+(`{ dictionary: ["hrað=braut"] }` gives `joints: [4]`). It is always a subset
+of `breaks`. Both obey `leftMin` and `rightMin`.
 
 ### 2. React Server Components
 
 ```tsx
 import { Hyphenate } from "skiptingar/react";
 
-<Hyphenate mode="heading">
+<Hyphenate>
   <h1>
     Sveitarstjórnarkosningar á <em>landsbyggðinni</em>
   </h1>
 </Hyphenate>;
 ```
 
-`<Hyphenate>` walks the JSX you give it and changes only text. It hyphenates
-and typesets (pass `typeset={false}` to skip typesetting). Quotes pair across
-inline elements, and a word split by inline markup (`hest<span>arnir</span>`)
+`<Hyphenate>` walks the JSX you give it and changes only text. It hyphenates,
+and, unless you pass `typeset={false}`, typesets. Quotes pair across inline
+elements, and a word split by inline markup (`hest<span>arnir</span>`)
 is hyphenated as one word. It skips `code`, `pre`, `kbd`, `samp`, `var`,
 `script`, `style`, `textarea`, `svg`, `math`, and anything marked
 `translate="no"` or `data-skiptingar="off"`. The `lang` and `translate` props
@@ -217,7 +237,7 @@ function Caption({ text }: { text: string }) {
 
 Use this for text that only exists in the browser, like something a user
 types. The patterns load lazily the first time, <!-- size:patterns -->48.9 kB<!-- /size --> brotli for the core
-and its patterns; the full client entry is <!-- size:client -->7.5 kB<!-- /size --> brotli,
+and its patterns; the full client entry is <!-- size:client -->7.6 kB<!-- /size --> brotli,
 and Settle rag alone (`SettledText`) <!-- size:rag -->5.4 kB<!-- /size -->. Until then the
 hook returns the text as it is, and so does it if the chunk fails to load. The
 next component that mounts tries the load again. A component that mounts after
@@ -249,8 +269,7 @@ again when the width changes and when fonts load, and keeps the element on
 `text-wrap: wrap` meanwhile, since `pretty` and `balance` would move the breaks
 again. Options (`RagOptions`): `balance: true` for titles (as few lines as
 possible, made even, with short words at line ends, stacked hyphens and breaks
-away from a joint costing more; pair it with `hyphenate(…, { mode: "heading",
-joints: "prefer" })` so it has the breaks to choose from), `overhang` (in em at 16px, 0.5 is about one letter) lets
+away from a joint costing more), `overhang` (in em at 16px, 0.5 is about one letter) lets
 a line's last character go a little past the edge when that helps, `tighten`
 (in em, 0.05 is a good size) lets a line take that much less space at each
 word space, and `tightenLetters` (in em, 0.01) that much less at each
@@ -336,6 +355,14 @@ limit.
 
 ## CSS to pair it with
 
+Wrapping is the third layer of v1, and it is your CSS, not package code. Add
+`text-wrap: pretty` to body text and `text-wrap: balance` to titles. Why:
+soft hyphens only say where a line may break, and the browser still picks the
+break on each line. `pretty` keeps a paragraph from ending on one short word,
+and `balance` evens out the lines of a title, so the breaks the package offers
+get used well. The rules are optional: the soft hyphens work the same with or
+without them.
+
 ```css
 .prose {
   text-wrap: pretty;
@@ -358,22 +385,6 @@ soft hyphens (NVDA has been reported to announce them), so test with yours.
 Check that your font has U+2011, the non-breaking hyphen `typeset()` puts in
 kennitala and phone numbers. Many don't (Geist and Bespoke Serif among them),
 and the browser then draws that one hyphen from a fallback font.
-
-## Exceptions
-
-`data/exceptions.txt` is one word per line. `-` is a break, `=` is a compound
-joint, which heading mode prefers:
-
-```
-þjóð=fé-lags=um=ræða
-```
-
-A listed word replaces the pattern result. The file has two parts:
-corrections (words the patterns break wrongly or not at all, such as
-`víta=mín`) and joint marks (words the patterns already break right, listed
-for their joints). Found a wrong break? Add the line, run
-`bun run generate:skiptingar`, open a PR. Until then, pass it in `dictionary`.
-The list is CC0, so other Icelandic tools can take it as it is.
 
 ## Icelandic on the platform
 
@@ -412,4 +423,4 @@ The Ritreglur rules for one-letter breaks follow
 
 ## License
 
-Code: MIT. Exception list: CC0. Patterns: CC BY 4.0. See `NOTICE`.
+Code: MIT. Word data: CC0. Patterns: CC BY 4.0. See `NOTICE`.

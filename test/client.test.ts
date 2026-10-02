@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { hyphenate } from "../src";
+import { hyphenate, processSegments } from "../src";
 import {
   NO_BREAK_SPACE as CLIENT_NO_BREAK_SPACE,
   NON_BREAKING_HYPHEN as CLIENT_NON_BREAKING_HYPHEN,
@@ -22,6 +22,11 @@ import {
 } from "../src/client/clean";
 import { createLoader, loadedSkiptingar } from "../src/client/load";
 import { applyOptionsKey, optionsKey } from "../src/client/options";
+
+/** `1990-2000` as the dashes rule sets it: an en dash and a word joiner after it. */
+function typesetDash(): string {
+  return processSegments(["1990-2000"], { typeset: { dashes: true } })[0] ?? "";
+}
 
 const SHY = "­";
 const NBSP = " ";
@@ -84,6 +89,20 @@ describe("cleanClipboard", () => {
     expect(calls).toBe(0);
     expect(needsCleaning("venjulegur texti")).toBe(false);
     expect(needsCleaning(`010190${NBH}2939`)).toBe(true);
+    expect(needsCleaning("1990–\u20602000")).toBe(true);
+  });
+
+  test("a copied dash range alone is cleaned: the word joiner does not stay on the clipboard", () => {
+    const range = typesetDash();
+    expect(range).toContain("\u2060");
+    const result = cleanClipboard(range, () => "<p>1990–2000</p>");
+    expect(result).toEqual({ text: "1990–2000", html: "<p>1990–2000</p>" });
+  });
+
+  test("cleanTextNodes removes the word joiner of a dash range", () => {
+    const node = { nodeValue: typesetDash() };
+    cleanTextNodes([node]);
+    expect(node.nodeValue).toBe("1990–2000");
   });
 
   test.each([SHY, NBSP, NBH])(
@@ -314,8 +333,42 @@ describe("hook options", () => {
   test("applyOptionsKey typesets and hyphenates by default", async () => {
     const core = await loadSkiptingar();
     const text = 'Hann sagði "orð" um Hraðbrautarframkvæmdir';
-    const out = applyOptionsKey(core, text, optionsKey(undefined));
-    expect(out).toContain("„orð“");
+    for (const key of [
+      optionsKey(undefined),
+      optionsKey({}),
+      optionsKey({ typeset: true }),
+      optionsKey({ typeset: {} }),
+    ]) {
+      const out = applyOptionsKey(core, text, key);
+      expect(out).toContain("„orð“");
+      expect(out).toContain(SHY);
+    }
+  });
+
+  test("options that give the same output share one key; typeset: false stays apart", () => {
+    const keys = [
+      optionsKey(undefined),
+      optionsKey({}),
+      optionsKey({ typeset: undefined }),
+      optionsKey({ typeset: true }),
+      optionsKey({ typeset: {} }),
+      optionsKey({ typeset: { quotes: undefined } }),
+    ];
+    expect(new Set(keys).size).toBe(1);
+    expect(optionsKey({ typeset: false })).not.toBe(keys[0]);
+    expect(optionsKey({ typeset: { dashes: true } })).not.toBe(keys[0]);
+    expect(optionsKey({ rules: "ritreglur" })).not.toBe(keys[0]);
+  });
+
+  test("applyOptionsKey only hyphenates with typeset: false", async () => {
+    const core = await loadSkiptingar();
+    const out = applyOptionsKey(
+      core,
+      'Hann sagði "orð" um Hraðbrautarframkvæmdir',
+      optionsKey({ typeset: false })
+    );
+    expect(out).toContain('"orð"');
+    expect(out).not.toContain("„");
     expect(out).toContain(SHY);
   });
 

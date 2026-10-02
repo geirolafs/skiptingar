@@ -16,7 +16,10 @@ export type ProcessOptions = {
   typeset?: TypesetOptions | false;
 };
 
-/** `true` means the default rules, `false` means off. */
+/**
+ * Typeset is on by default: left out (`undefined`) or `true` means the default
+ * rules, an options object sets them, and `false` means off.
+ */
 export function resolveTypeset(
   value: boolean | TypesetOptions | undefined
 ): TypesetOptions | false {

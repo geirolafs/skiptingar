@@ -2,7 +2,7 @@
   "name": "skiptingar",
   "version": "0.1.0",
   "private": true,
-  "description": "Icelandic text set the way a typesetter would: hyphenation, a settled ragged edge, titles that break at their joints, and Icelandic typesetting rules.",
+  "description": "Icelandic hyphenation from the 2020 patterns, with new typographic rules that drop breaks that read badly, put in on the server as soft hyphens; Icelandic typesetting rules (no-break spaces, quotes); and CSS text-wrap to pair them with.",
   "license": "MIT AND CC-BY-4.0 AND CC0-1.0",
   "author": "Geir Ólafsson",
   "type": "module",
@@ -55,8 +55,6 @@
     "hyphenation",
     "typography",
     "typesetting",
-    "rag",
-    "knuth-plass",
     "íslenska",
     "orðskipting"
   ]

@@ -15,7 +15,10 @@ import { analyzeWord, type HyphenateOptions } from "./hyphenate";
 import { processSegments, resolveTypeset } from "./process";
 import type { TypesetOptions } from "./typeset";
 
-/** The options a request may carry: what `useHyphenate` takes. */
+/**
+ * The options a request may carry: what `useHyphenate` takes. A request
+ * typesets unless it says `typeset: false`.
+ */
 export type RemoteOptions = HyphenateOptions & { typeset?: boolean | TypesetOptions };
 
 /** One job in a request. */
