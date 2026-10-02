@@ -3,10 +3,19 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { hyphenate, processSegments } from "../src";
 import {
+  hyphenate,
+  LINKING_SYLLABLES,
+  processSegments,
+  RAG_LANGUAGE,
+  SHORT_WORDS,
+} from "../src";
+import {
+  LINKING_SYLLABLES as CLIENT_LINKING_SYLLABLES,
   NO_BREAK_SPACE as CLIENT_NO_BREAK_SPACE,
   NON_BREAKING_HYPHEN as CLIENT_NON_BREAKING_HYPHEN,
+  RAG_LANGUAGE as CLIENT_RAG_LANGUAGE,
+  SHORT_WORDS as CLIENT_SHORT_WORDS,
   SOFT_HYPHEN as CLIENT_SOFT_HYPHEN,
   cleanCopiedPlainText,
   cleanCopiedText,
@@ -197,6 +206,13 @@ describe("client constants", () => {
     expect(CLIENT_SOFT_HYPHEN).toBe(SHY);
     expect(CLIENT_NO_BREAK_SPACE).toBe(NBSP);
     expect(CLIENT_NON_BREAKING_HYPHEN).toBe(NBH);
+  });
+
+  test("re-exports the Icelandic word lists for settle-rag, the same objects as the core", () => {
+    expect(CLIENT_RAG_LANGUAGE).toBe(RAG_LANGUAGE);
+    expect(CLIENT_SHORT_WORDS).toBe(SHORT_WORDS);
+    expect(CLIENT_LINKING_SYLLABLES).toBe(LINKING_SYLLABLES);
+    expect(CLIENT_RAG_LANGUAGE.locale).toBe("is");
   });
 });
 

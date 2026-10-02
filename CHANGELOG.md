@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.1.3 (2026-10-02)
 
-- Docs and comments only, no code changes.
+- `skiptingar/client` now re-exports `RAG_LANGUAGE`, `SHORT_WORDS` and
+  `LINKING_SYLLABLES`, and the README documents them.
 - Heading mode and `analyzeWord` docs now say when joints are found: from a
   `dictionary` `=` line, and with `exceptions: true` also from the exception
   list, name endings and linking syllables. Otherwise there are none.

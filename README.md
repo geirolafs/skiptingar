@@ -152,7 +152,7 @@ nothing to the browser.
 | --- | --- | --- |
 | `skiptingar` | Anywhere: Node, the edge, a build step | `hyphenate()`, `typeset()`, `processSegments()` and `analyzeWord()`: plain functions on strings, and `handleSkiptingarRequest()`, the endpoint for the client |
 | `skiptingar/react` | React Server Components | `<Hyphenate>` (all three layers) and `<Typeset>` (locale details only) |
-| `skiptingar/client` | The browser | `useHyphenate()` and its sibling hooks for text that exists only in the browser, `configureSkiptingar()` to use a server endpoint, and `<CleanCopy />` |
+| `skiptingar/client` | The browser | `useHyphenate()` and its sibling hooks for text that exists only in the browser, `configureSkiptingar()` to use a server endpoint, `<CleanCopy />`, and the Icelandic word lists for `settle-rag` |
 
 ## API
 
@@ -288,7 +288,7 @@ function Caption({ text }: { text: string }) {
 Use this for text that exists only in the browser, like something a user
 types. It adds the locale details too, unless you pass `typeset: false`. The
 patterns load lazily the first time: <!-- size:patterns -->49.8 kB<!-- /size --> brotli for the core and its
-patterns, while the client entry itself is <!-- size:client -->2.9 kB<!-- /size --> brotli. Until then the hook
+patterns, while the client entry itself is <!-- size:client -->3.1 kB<!-- /size --> brotli. Until then the hook
 returns the text as it is, and so it does if the chunk fails to load. The next
 component that mounts tries the load again. A component that mounts after the
 load gets the processed text on its first render. Anything you can do on the
@@ -298,7 +298,7 @@ server, do on the server.
 
 A page that has a server can skip the patterns: mount the handler on a POST
 route and point the client at it once. The browser then sends the text and
-gets it back hyphenated, for <!-- size:endpoint -->2.1 kB<!-- /size --> brotli.
+gets it back hyphenated, for <!-- size:endpoint -->2.2 kB<!-- /size --> brotli.
 
 ```ts
 // app/api/skiptingar/route.ts
@@ -346,15 +346,40 @@ removed, no-break spaces become spaces and U+2011 becomes a normal hyphen.
 Icelandic quotes and dashes stay, because they are the right characters. It
 doesn't change what find-in-page sees. On its own it is <!-- size:cleanCopy -->0.6 kB<!-- /size --> brotli.
 
+### Icelandic data for settle-rag
+
+`settle-rag` is a separate package for line breaking. It is not on npm yet. It
+ships no language of its own, so Skiptingar exports the Icelandic one as three
+plain objects:
+
+- `SHORT_WORDS`: the words that read badly at the end of a line, like `og`,
+  `að` and `með`.
+- `LINKING_SYLLABLES`: the syllables that link a compound's parts, like
+  `sveitar·stjórnar`.
+- `RAG_LANGUAGE`: both lists and the locale, ready to pass as `language`.
+
+```ts
+RAG_LANGUAGE;
+// { shortWords: SHORT_WORDS, linkingSyllables: LINKING_SYLLABLES, locale: "is" }
+```
+
+In a client component, import them from `skiptingar/client`, so the pattern
+data stays out of the browser. On the server, import them from `skiptingar`.
+
+```tsx
+"use client";
+import { RAG_LANGUAGE } from "skiptingar/client";
+```
+
 ## What it costs a browser
 
 | Job | Setup | Brotli |
 | --- | --- | --- |
 | Hyphenate Icelandic | Skiptingar on the server | 0 kB |
-| | Skiptingar via your server (`useHyphenate` with an endpoint) | <!-- size:endpoint -->2.1 kB<!-- /size --> |
+| | Skiptingar via your server (`useHyphenate` with an endpoint) | <!-- size:endpoint -->2.2 kB<!-- /size --> |
 | | [hyphen](https://www.npmjs.com/package/hyphen)/is, the old TeX patterns | 12.9 kB |
 | | [Hyphenopoly](https://mnater.github.io/Hyphenopoly/), the old TeX patterns as WebAssembly | 14.8 kB |
-| | Skiptingar in the browser, for a page with no server to ask | <!-- size:browser -->51.9 kB<!-- /size --> |
+| | Skiptingar in the browser, for a page with no server to ask | <!-- size:browser -->52 kB<!-- /size --> |
 | Locale details | Skiptingar on the server | 0 kB |
 | | [Typeset.js](https://typeset.lllllllllllllllll.com/) in the browser, English rules | 29.7 kB |
 
