@@ -49,9 +49,8 @@ npm install skiptingar
 
 It is ESM only and has no runtime dependencies. React 18 or newer is only
 needed for the React and client entry points (they use no React 19-only API;
-the tests run on React 19). The source lives in a website repo while the API
-settles. There, `bun run size` prints what each entry costs a browser, and
-`bun run bench` how fast the core runs.
+the tests run on React 19). In a clone of this repo, `bun run size` prints
+what each entry costs a browser, and `bun run bench` how fast the core runs.
 
 ## Three ways to use it
 
