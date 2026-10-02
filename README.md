@@ -77,10 +77,18 @@ Three layers, all on the server and all on by default:
    drop 29% of the breaks Ritreglur allows (122 032 of 416 492 across the
    218 308 words the 2020 patterns were trained on). They are new and under
    development, so they may change. `rules: "ritreglur"` turns them off.
-3. **Locale details.** No-break spaces in numbers and units, dates,
-   abbreviations, titles, kennitala and phone numbers; Icelandic quotes; en
-   dashes in ranges. This is `typeset()` in the API. `typeset={false}` (or
-   `typeset: false`) turns it off. Each rule can be turned off on its own.
+3. **Locale details.** No-break spaces keep a number with its unit
+   (`1.000 kr.`), a day with its month (`30. september`), an ordinal with its
+   word (`1. sæti`), an abbreviation with its number (`bls. 12`) and a title
+   with its name (`dr. Jón`). A no-break hyphen keeps kennitölur and phone
+   numbers whole (`011390-2939`, `588-5522`). Straight quotes become Icelandic
+   `„…“`, and a hyphen in a range becomes an en dash (`1990–2000`). This is
+   `typeset()` in the API; `hyphenate()` alone does not do it. It is on by
+   default in `<Hyphenate>` (`typeset={false}` turns it off) and in the client
+   hooks and the endpoint (`typeset: false`). Eight rules are on by default and
+   two, `singleLetter` and `lastWords`, are off. Each one can be turned on or
+   off on its own; see
+   [Where Icelandic doesn't break](#where-icelandic-doesnt-break).
 
 Then **CSS `text-wrap`**, which we recommend. It is your CSS, not package
 code. Soft hyphens only say where a line may break, and the browser still picks

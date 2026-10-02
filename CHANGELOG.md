@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- README: the "Locale details" layer now names every rule it applies,
+  says kennitölur and phone numbers get a no-break hyphen, not a space, and
+  says two rules are off by default.
+
 ## 0.1.3 (2026-10-02)
 
 - `skiptingar/client` now re-exports `RAG_LANGUAGE`, `SHORT_WORDS` and
