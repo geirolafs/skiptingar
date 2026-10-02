@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { HyphenateOptions, TypesetOptions } from "../index";
+import type { HyphenateOptions, LocaleDetailsOptions } from "../index";
 // From the module, not the `.` entry: an entry importing another entry makes
 // Bun (1.2.21, `splitting: true`) export these names twice, which no runtime loads.
 import { processSegments } from "../process";
@@ -8,8 +8,8 @@ import { isIcelandic, mapTextSegments } from "./walk";
 export type TransformOptions = {
   /** Hyphenation options. Omit or `false` to skip hyphenation. */
   hyphenate?: HyphenateOptions | false;
-  /** Typeset options. Omit or `false` to skip typesetting. */
-  typeset?: TypesetOptions | false;
+  /** Locale details options. Omit or `false` to skip them. */
+  localeDetails?: LocaleDetailsOptions | false;
   /**
    * Language of the whole tree. Default `"is"`. Any other language means
    * nothing is processed, except inside an element with `lang="is"`.
@@ -18,7 +18,7 @@ export type TransformOptions = {
 };
 
 /**
- * Typesets and hyphenates all text in a React tree.
+ * Adds the locale details to and hyphenates all text in a React tree.
  *
  * Text is found in strings, numbers, arrays, fragments and host elements, and
  * in the `children` prop of components. Text that a component renders by
@@ -27,7 +27,7 @@ export type TransformOptions = {
  *
  * Text is grouped into runs, split at block elements (`p`, `div`, `li`, `br`
  * and every tag not in `INLINE_TAGS`) and at skipped subtrees such as
- * `<code>`. Each run goes through `processSegments` as a whole: typeset and
+ * `<code>`. Each run goes through `processSegments` as a whole: the locale details and
  * hyphenation both see the joined text of the run, and never reach across
  * blocks. So quote pairs work across inline elements, a word split by inline
  * markup (`hest<span>arnir</span>`) is hyphenated as one word, and a web
@@ -49,8 +49,12 @@ export function transformChildren(
   children: ReactNode,
   options: TransformOptions = {}
 ): ReactNode {
-  const { hyphenate: hyphenateOptions, typeset: typesetOptions, lang = "is" } = options;
-  if (!(hyphenateOptions || typesetOptions)) {
+  const {
+    hyphenate: hyphenateOptions,
+    localeDetails: localeDetailsOptions,
+    lang = "is",
+  } = options;
+  if (!(hyphenateOptions || localeDetailsOptions)) {
     return children;
   }
 
@@ -58,7 +62,10 @@ export function transformChildren(
   return mapTextSegments(
     children,
     segments =>
-      processSegments(segments, { hyphenate: hyphenateOptions, typeset: typesetOptions }),
+      processSegments(segments, {
+        hyphenate: hyphenateOptions,
+        localeDetails: localeDetailsOptions,
+      }),
     { foreign }
   );
 }

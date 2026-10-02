@@ -1,17 +1,17 @@
 import type { ReactNode } from "react";
-import type { HyphenateOptions, TypesetOptions } from "../index";
+import type { HyphenateOptions, LocaleDetailsOptions } from "../index";
 // From the module, not the `.` entry (see transform.ts).
-import { resolveTypeset } from "../process";
+import { resolveLocaleDetails } from "../process";
 import { transformChildren } from "./transform";
 import { toFragment } from "./walk";
 
 export type HyphenateProps = Omit<HyphenateOptions, "hyphenChar"> & {
   /**
-   * Typeset rules (no-break spaces, Icelandic quotes and dashes). On by
+   * Locale details rules (no-break spaces, Icelandic quotes and dashes). On by
    * default: `true` uses the defaults, an options object sets them, `false`
    * hyphenates only. Default `true`.
    */
-  typeset?: boolean | TypesetOptions;
+  localeDetails?: boolean | LocaleDetailsOptions;
   /**
    * Language of the children. Default `"is"`. Any other language processes
    * nothing, except inside an element with `lang="is"`.
@@ -37,7 +37,7 @@ export type HyphenateProps = Omit<HyphenateOptions, "hyphenChar"> & {
  *   `data-skiptingar="off"`.
  * - Text under a host element with a `lang` that is not Icelandic (`is`,
  *   `is-*`, any case) is left alone, and it also ends the run for
- *   typesetting. English words follow English division, and Icelandic quotes
+ *   locale details. English words follow English division, and Icelandic quotes
  *   do not fit English text. A `lang="is"` inside it turns processing back on.
  *   The `lang` and `translate` props of a component are its own and are not
  *   read. `data-skiptingar="off"` works on any element.
@@ -48,14 +48,14 @@ export type HyphenateProps = Omit<HyphenateOptions, "hyphenChar"> & {
  */
 export function Hyphenate({
   children,
-  typeset = true,
+  localeDetails = true,
   lang,
   ...hyphenateOptions
 }: HyphenateProps) {
   return toFragment(
     transformChildren(children, {
       hyphenate: hyphenateOptions,
-      typeset: resolveTypeset(typeset),
+      localeDetails: resolveLocaleDetails(localeDetails),
       lang,
     })
   );

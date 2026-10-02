@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { hyphenate, processSegments } from "../src";
-import { Hyphenate, Typeset, transformChildren } from "../src/react";
+import { Hyphenate, LocaleDetails, transformChildren } from "../src/react";
 
 const SHY = "­";
 const NB = "\u00A0";
@@ -167,7 +167,7 @@ describe("<Hyphenate>", () => {
     }
   });
 
-  test("typeset is on by default: left out, it hyphenates and typesets", () => {
+  test("localeDetails is on by default: left out, it hyphenates and adds locale details", () => {
     const html = render(
       <Hyphenate>
         <p>Hann sagði "orð" um {LONG}, 1.000 kr.</p>
@@ -178,16 +178,16 @@ describe("<Hyphenate>", () => {
     expect(html).toContain(SHY);
     expect(html).toBe(
       render(
-        <Hyphenate typeset>
+        <Hyphenate localeDetails>
           <p>Hann sagði "orð" um {LONG}, 1.000 kr.</p>
         </Hyphenate>
       )
     );
   });
 
-  test("typeset={false} leaves straight quotes and hyphenates", () => {
+  test("localeDetails={false} leaves straight quotes and hyphenates", () => {
     const html = render(
-      <Hyphenate typeset={false}>
+      <Hyphenate localeDetails={false}>
         <p>Hann sagði "orð" um {LONG}</p>
       </Hyphenate>
     );
@@ -196,9 +196,9 @@ describe("<Hyphenate>", () => {
     expect(html).toContain(SHY);
   });
 
-  test("accepts typeset options", () => {
+  test("accepts localeDetails options", () => {
     const html = render(
-      <Hyphenate typeset={{ quotes: false }}>
+      <Hyphenate localeDetails={{ quotes: false }}>
         <p>Hann sagði "orð"</p>
       </Hyphenate>
     );
@@ -357,21 +357,21 @@ describe("block boundaries", () => {
 
   test("quotes do not pair across paragraphs", () => {
     const html = render(
-      <Typeset>
+      <LocaleDetails>
         <p>"a</p>
         <p>b"</p>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).toBe("<p>&quot;a</p><p>b&quot;</p>");
   });
 
   test("quotes still pair across an inline element", () => {
     const html = render(
-      <Typeset>
+      <LocaleDetails>
         <p>
           "<strong>orð</strong>"
         </p>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).toBe("<p>„<strong>orð</strong>“</p>");
   });
@@ -391,23 +391,23 @@ describe("block boundaries", () => {
 
   test("lastWords binds only inside each block", () => {
     const html = render(
-      <Typeset lastWords>
+      <LocaleDetails lastWords>
         <p>Þetta er lína</p>
         <p>Önnur góð lína</p>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).toBe(`<p>Þetta er${NB}lína</p><p>Önnur góð${NB}lína</p>`);
   });
 
   test("a <br> separates runs", () => {
     const html = render(
-      <Typeset>
+      <LocaleDetails>
         <p>
           "a
           <br />
           b"
         </p>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).toBe("<p>&quot;a<br/>b&quot;</p>");
   });
@@ -417,18 +417,18 @@ describe("block boundaries", () => {
       return <>{children}</>;
     }
     const custom = render(
-      <Typeset>
+      <LocaleDetails>
         {createElement("x-card", null, '"a')}
         {createElement("x-card", null, 'b"')}
-      </Typeset>
+      </LocaleDetails>
     );
     expect(custom).toBe("<x-card>&quot;a</x-card><x-card>b&quot;</x-card>");
     const through = render(
-      <Typeset>
+      <LocaleDetails>
         <p>
           "<Wrap>orð</Wrap>"
         </p>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(through).toBe("<p>„orð“</p>");
   });
@@ -533,11 +533,11 @@ describe("lang", () => {
 
   test("English quotes in a lang=en span are not converted", () => {
     const html = render(
-      <Typeset>
+      <LocaleDetails>
         <p>
           Hann sagði "<span lang="en">"hello"</span>" og "orð"
         </p>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).toContain('<span lang="en">&quot;hello&quot;</span>');
     expect(html).toContain("„orð“");
@@ -545,11 +545,11 @@ describe("lang", () => {
 
   test("a foreign span ends the run, so quotes do not pair across it", () => {
     const html = render(
-      <Typeset>
+      <LocaleDetails>
         <p>
           "a <span lang="en">word</span> b"
         </p>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).toBe('<p>&quot;a <span lang="en">word</span> b&quot;</p>');
   });
@@ -574,23 +574,23 @@ describe("lang", () => {
       </Hyphenate>
     );
     expect(on).toBe(`<p>${hyphenate(LONG)}</p>`);
-    const typeset = render(
-      <Typeset lang="en">
+    const localeDetails = render(
+      <LocaleDetails lang="en">
         <p>"a"</p>
-      </Typeset>
+      </LocaleDetails>
     );
-    expect(typeset).toBe("<p>&quot;a&quot;</p>");
+    expect(localeDetails).toBe("<p>&quot;a&quot;</p>");
   });
 });
 
 describe("skipped subtrees and empty lang", () => {
   test("a skipped inline element ends the run", () => {
     const html = render(
-      <Typeset>
+      <LocaleDetails>
         <p>
           555<code>x</code> 1234
         </p>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).toBe("<p>555<code>x</code> 1234</p>");
   });
@@ -613,9 +613,9 @@ describe("skipped subtrees and empty lang", () => {
     ],
   ])("%s in the middle ends the run", (_name, element) => {
     const html = render(
-      <Typeset>
+      <LocaleDetails>
         <p>555{element} 1234</p>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).toContain(" 1234");
     expect(html).not.toContain(NB);
@@ -623,22 +623,22 @@ describe("skipped subtrees and empty lang", () => {
 
   test("quotes still pair across a non-skipped inline element", () => {
     const html = render(
-      <Typeset>
+      <LocaleDetails>
         <p>
           "<strong>orð</strong>" og 5 km
         </p>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).toContain("„<strong>orð</strong>“");
   });
 
   test("an empty lang means unknown language and is skipped", () => {
     const html = render(
-      <Typeset>
+      <LocaleDetails>
         <p>
           <span lang="">"orð" 555-1234</span>
         </p>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).toBe('<p><span lang="">&quot;orð&quot; 555-1234</span></p>');
     expect(
@@ -662,12 +662,12 @@ describe("skipped subtrees and empty lang", () => {
   });
 });
 
-describe("<Typeset>", () => {
-  test("typesets without adding soft hyphens", () => {
+describe("<LocaleDetails>", () => {
+  test("adds locale details without adding soft hyphens", () => {
     const html = render(
-      <Typeset>
+      <LocaleDetails>
         <p>Hann sagði "orð" um {LONG}, 5 km frá</p>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).not.toContain(SHY);
     expect(html).toContain("„orð“");
@@ -676,9 +676,9 @@ describe("<Typeset>", () => {
 
   test("skips code like <Hyphenate> does", () => {
     const html = render(
-      <Typeset>
+      <LocaleDetails>
         <code>"x"</code>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).toBe("<code>&quot;x&quot;</code>");
   });
@@ -696,7 +696,7 @@ describe("Unicode normalisation", () => {
     expect(html).toContain(SHY);
   });
 
-  test("segments split by an inline element are normalised before typeset", () => {
+  test("segments split by an inline element are normalised before locale details", () => {
     const html = render(
       <Hyphenate rules="ritreglur">
         <p>
@@ -711,8 +711,10 @@ describe("Unicode normalisation", () => {
     );
   });
 
-  test("<Typeset> normalises to NFC as well", () => {
-    const html = render(<Typeset>{"Sjá nr. 5 á ástríða".normalize("NFD")}</Typeset>);
+  test("<LocaleDetails> normalises to NFC as well", () => {
+    const html = render(
+      <LocaleDetails>{"Sjá nr. 5 á ástríða".normalize("NFD")}</LocaleDetails>
+    );
     expect(html).toBe(`Sjá nr.${NB}5 á ástríða`.normalize("NFC"));
   });
 });
@@ -792,8 +794,8 @@ describe("processSegments", () => {
     expect(processSegments(["á".normalize("NFD"), "b"], {})).toEqual(["á", "b"]);
   });
 
-  test("keeps soft hyphens already in the text when only typesetting", () => {
-    expect(processSegments([`hest${SHY}arnir`], { typeset: {} })).toEqual([
+  test("keeps soft hyphens already in the text when only adding locale details", () => {
+    expect(processSegments([`hest${SHY}arnir`], { localeDetails: {} })).toEqual([
       `hest${SHY}arnir`,
     ]);
   });
@@ -827,17 +829,17 @@ describe("components at block level end the run", () => {
 
   test("quotes do not pair across two paragraph components", () => {
     const html = render(
-      <Typeset>
+      <LocaleDetails>
         <P>Hann sagði "já</P>
         <P>og nei" í gær</P>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).toBe("<p>Hann sagði &quot;já</p><p>og nei&quot; í gær</p>");
   });
 
   test("a lone component inside an inline element stays inline", () => {
     const html = render(
-      <Typeset>
+      <LocaleDetails>
         <p>
           "
           <em>
@@ -845,17 +847,17 @@ describe("components at block level end the run", () => {
           </em>
           "
         </p>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).toBe("<p>„<em>orð</em>“</p>");
   });
 
   test('data-skiptingar="inline" joins a component to the run', () => {
     const html = render(
-      <Typeset>
+      <LocaleDetails>
         <P data-skiptingar="inline">"a</P>
         <P data-skiptingar="inline">b"</P>
-      </Typeset>
+      </LocaleDetails>
     );
     expect(html).toBe("<p>„a</p><p>b“</p>");
   });

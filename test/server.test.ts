@@ -3,9 +3,9 @@ import {
   analyzeWord,
   handleSkiptingarRequest,
   hyphenate,
-  resolveTypeset,
+  localeDetails,
+  resolveLocaleDetails,
   runRemoteItems,
-  typeset,
 } from "../src";
 import {
   configureSkiptingar,
@@ -42,7 +42,11 @@ describe("handleSkiptingarRequest", () => {
     const response = await handleSkiptingarRequest(
       post({
         items: [
-          { op: "process", text: "Hraðbrautarframkvæmdir", options: { typeset: false } },
+          {
+            op: "process",
+            text: "Hraðbrautarframkvæmdir",
+            options: { localeDetails: false },
+          },
           { op: "analyze", word: "vítamín", options: { rules: "ritreglur" } },
         ],
       })
@@ -55,24 +59,24 @@ describe("handleSkiptingarRequest", () => {
     ]);
   });
 
-  test("typeset is on by default: a request typesets unless it says typeset: false", async () => {
+  test("localeDetails is on by default: a request adds locale details unless it says localeDetails: false", async () => {
     const text = 'Hann sagði "orð" um Hraðbrautarframkvæmdir, 1.000 kr.';
     const response = await handleSkiptingarRequest(
       post({
         items: [
           { op: "process", text },
           { op: "process", text, options: {} },
-          { op: "process", text, options: { typeset: false } },
-          { op: "process", text, options: { typeset: true } },
-          { op: "process", text, options: { typeset: { quotes: false } } },
+          { op: "process", text, options: { localeDetails: false } },
+          { op: "process", text, options: { localeDetails: true } },
+          { op: "process", text, options: { localeDetails: { quotes: false } } },
         ],
       })
     );
     const { results } = (await response.json()) as { results: string[] };
-    const typesetOut = hyphenate(typeset(text));
-    expect(results[0]).toBe(typesetOut);
-    expect(results[1]).toBe(typesetOut);
-    expect(results[3]).toBe(typesetOut);
+    const localeDetailsOut = hyphenate(localeDetails(text));
+    expect(results[0]).toBe(localeDetailsOut);
+    expect(results[1]).toBe(localeDetailsOut);
+    expect(results[3]).toBe(localeDetailsOut);
     expect(results[0]).toContain("„orð“");
     expect(results[2]).toBe(hyphenate(text));
     expect(results[2]).toContain('"orð"');
@@ -82,17 +86,19 @@ describe("handleSkiptingarRequest", () => {
 
   test("runRemoteItems follows the same default", () => {
     const text = 'Hann sagði "orð"';
-    expect(runRemoteItems([{ op: "process", text }])).toEqual([hyphenate(typeset(text))]);
+    expect(runRemoteItems([{ op: "process", text }])).toEqual([
+      hyphenate(localeDetails(text)),
+    ]);
     expect(
-      runRemoteItems([{ op: "process", text, options: { typeset: false } }])
+      runRemoteItems([{ op: "process", text, options: { localeDetails: false } }])
     ).toEqual([hyphenate(text)]);
   });
 
-  test("resolveTypeset is on unless turned off", () => {
-    expect(resolveTypeset(undefined)).toEqual({});
-    expect(resolveTypeset(false)).toBe(false);
-    expect(resolveTypeset(true)).toEqual({});
-    expect(resolveTypeset({ dashes: true })).toEqual({ dashes: true });
+  test("resolveLocaleDetails is on unless turned off", () => {
+    expect(resolveLocaleDetails(undefined)).toEqual({});
+    expect(resolveLocaleDetails(false)).toBe(false);
+    expect(resolveLocaleDetails(true)).toEqual({});
+    expect(resolveLocaleDetails({ dashes: true })).toEqual({ dashes: true });
   });
 
   test("refuses other methods, bad bodies and oversized requests", async () => {
@@ -128,11 +134,11 @@ describe("handleSkiptingarRequest abuse limits", () => {
     const text = 'Hann sagði "orð" um Hraðbrautarframkvæmdir, 1.000 kr.';
     const page = {
       rules: "typographic",
-      typeset: { preset: "typographic", dashes: true },
+      localeDetails: { preset: "typographic", dashes: true },
     };
     const response = await run([
       job(text, page),
-      job(text, { rules: "ritreglur", typeset: false }),
+      job(text, { rules: "ritreglur", localeDetails: false }),
       job(text),
       { op: "analyze", word: "vítamín", options: { rules: "ritreglur" } },
       { op: "analyze", word: "vítamín" },
@@ -142,7 +148,7 @@ describe("handleSkiptingarRequest abuse limits", () => {
     expect(results).toEqual(
       runRemoteItems([
         { op: "process", text, options: page as never },
-        { op: "process", text, options: { rules: "ritreglur", typeset: false } },
+        { op: "process", text, options: { rules: "ritreglur", localeDetails: false } },
         { op: "process", text },
         { op: "analyze", word: "vítamín", options: { rules: "ritreglur" } },
         { op: "analyze", word: "vítamín" },
@@ -163,7 +169,7 @@ describe("handleSkiptingarRequest abuse limits", () => {
         exceptions: true,
         dictionary: ["forn=aldar=frægð"],
         skipAcronyms: true,
-        typeset: {
+        localeDetails: {
           preset: "typographic",
           quotes: true,
           singleLetter: true,
@@ -223,11 +229,11 @@ describe("handleSkiptingarRequest abuse limits", () => {
   test("an unknown option key is a 400, in every place options go", async () => {
     const bad = [
       job("orð", { nope: true }),
-      job("orð", { typeset: { nope: true } }),
+      job("orð", { localeDetails: { nope: true } }),
       job("orð", JSON.parse('{"__proto__": {"rules": "ritreglur"}}')),
       job("orð", { constructor: 1 }),
       job("orð", { toString: 1 }),
-      { op: "analyze", word: "orð", options: { typeset: false } },
+      { op: "analyze", word: "orð", options: { localeDetails: false } },
       { op: "analyze", word: "orð", options: { nope: 1 } },
     ];
     for (const item of bad) {
@@ -251,11 +257,11 @@ describe("handleSkiptingarRequest abuse limits", () => {
       { dictionary: Array.from({ length: 201 }, () => "ab") },
       { dictionary: ["a".repeat(65)] },
       { dictionary: [1] },
-      { typeset: "yes" },
-      { typeset: [] },
-      { typeset: null },
-      { typeset: { preset: "all" } },
-      { typeset: { quotes: "yes" } },
+      { localeDetails: "yes" },
+      { localeDetails: [] },
+      { localeDetails: null },
+      { localeDetails: { preset: "all" } },
+      { localeDetails: { quotes: "yes" } },
     ];
     for (const options of bad) {
       expect((await run([job("orð", options)])).status).toBe(400);
@@ -279,7 +285,7 @@ describe("handleSkiptingarRequest abuse limits", () => {
     expect(lines.every(line => line.length === 64)).toBe(true);
     const listed = (lines[7] ?? "").replace("-", "");
     const response = await run([
-      job(`orð ${listed}`, { dictionary: lines, hyphenChar: "|", typeset: false }),
+      job(`orð ${listed}`, { dictionary: lines, hyphenChar: "|", localeDetails: false }),
     ]);
     expect(response.status).toBe(200);
     const { results } = (await response.json()) as { results: string[] };
@@ -375,7 +381,7 @@ describe("handleSkiptingarRequest abuse limits", () => {
     expect((await run([job(word)])).status).toBe(400);
     expect((await run([job(`Orð ${word} orð`)])).status).toBe(400);
     expect((await run([{ op: "analyze", word }])).status).toBe(400);
-    expect((await run([job(word, { typeset: false })])).status).toBe(400);
+    expect((await run([job(word, { localeDetails: false })])).status).toBe(400);
     // Just inside the limit, and a limit of the caller's own.
     expect((await run([job("a".repeat(200))])).status).toBe(200);
     expect((await run([job("a".repeat(201))])).status).toBe(400);

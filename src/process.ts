@@ -6,23 +6,23 @@ import {
 } from "./characters";
 import type { HyphenateOptions } from "./hyphenate";
 import { breakOffsets } from "./hyphenate";
-import type { TypesetOptions } from "./typeset";
-import { typesetSegments } from "./typeset";
+import type { LocaleDetailsOptions } from "./locale-details";
+import { localeDetailsSegments } from "./locale-details";
 
 export type ProcessOptions = {
   /** Hyphenation options. Omit or `false` to skip hyphenation. */
   hyphenate?: HyphenateOptions | false;
-  /** Typeset options. Omit or `false` to skip typesetting. */
-  typeset?: TypesetOptions | false;
+  /** Locale details options. Omit or `false` to skip them. */
+  localeDetails?: LocaleDetailsOptions | false;
 };
 
 /**
- * Typeset is on by default: left out (`undefined`) or `true` means the default
+ * Locale details are on by default: left out (`undefined`) or `true` means the default
  * rules, an options object sets them, and `false` means off.
  */
-export function resolveTypeset(
-  value: boolean | TypesetOptions | undefined
-): TypesetOptions | false {
+export function resolveLocaleDetails(
+  value: boolean | LocaleDetailsOptions | undefined
+): LocaleDetailsOptions | false {
   if (value === undefined || value === true) {
     return {};
   }
@@ -61,7 +61,7 @@ function toRawOffsets(text: string, offsets: readonly number[]): number[] {
 /**
  * The whole pipeline over the text segments of one run, for example the text
  * nodes of a paragraph split by inline elements. Every segment is put in NFC.
- * Then typeset works across the segments. Then, when hyphenation is on, the
+ * Then the locale details are added across the segments. Then, when hyphenation is on, the
  * old soft hyphens are removed, the joined run is hyphenated and the breaks
  * are cut back into the segments. With hyphenation off, soft hyphens already
  * in the text are kept.
@@ -77,15 +77,19 @@ export function processSegments(
 ): string[] {
   const normal = segments.map(segment => segment.normalize("NFC"));
   if (!options.hyphenate) {
-    return options.typeset ? typesetSegments(normal, options.typeset) : normal;
+    return options.localeDetails
+      ? localeDetailsSegments(normal, options.localeDetails)
+      : normal;
   }
 
   const clean = normal.map(segment => segment.replace(SOFT_HYPHENS, ""));
-  const typeset = options.typeset ? typesetSegments(clean, options.typeset) : clean;
-  const joined = typeset.join("");
+  const localeDetails = options.localeDetails
+    ? localeDetailsSegments(clean, options.localeDetails)
+    : clean;
+  const joined = localeDetails.join("");
   const offsets = toRawOffsets(joined, breakOffsets(joined, options.hyphenate));
   return insertAcrossSegments(
-    typeset,
+    localeDetails,
     offsets,
     options.hyphenate.hyphenChar ?? SOFT_HYPHEN
   );

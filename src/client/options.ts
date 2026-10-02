@@ -1,16 +1,16 @@
-import type { HyphenateOptions, TypesetOptions } from "../index";
+import type { HyphenateOptions, LocaleDetailsOptions } from "../index";
 
 export type UseHyphenateOptions = HyphenateOptions & {
   /**
-   * Typesetting is on by default. `true` or leaving it out uses the default
-   * typeset rules, an options object sets them, `false` hyphenates only.
+   * Locale details are on by default. `true` or leaving it out uses the default
+   * rules, an options object sets them, `false` hyphenates only.
    * Default `true`.
    */
-  typeset?: boolean | TypesetOptions;
+  localeDetails?: boolean | LocaleDetailsOptions;
 };
 
 /** The two core functions the hook needs. A type only: the core loads lazily. */
-type Core = Pick<typeof import("../index"), "processSegments" | "resolveTypeset">;
+type Core = Pick<typeof import("../index"), "processSegments" | "resolveLocaleDetails">;
 
 /** The same value with every object's keys sorted and `undefined` values dropped. */
 function sortKeys(value: unknown): unknown {
@@ -32,30 +32,30 @@ function sortKeys(value: unknown): unknown {
  * A string that is equal for equal options, whatever the key order (nested
  * objects too) and object identity. React can use it as a dependency, so an
  * inline options object does not cause new work on every render. Options that
- * give the same output share a key: typeset left out, `true` and `{}` are all
- * the default rules. `typeset: false` stays apart.
+ * give the same output share a key: `localeDetails` left out, `true` and `{}` are all
+ * the default rules. `localeDetails: false` stays apart.
  */
 export function optionsKey(options: object | undefined): string {
   const sorted = sortKeys(options ?? {}) as Record<string, unknown>;
-  const { typeset } = sorted;
-  const isDefaultTypeset =
-    typeset === true ||
-    (typeof typeset === "object" &&
-      typeset !== null &&
-      !Array.isArray(typeset) &&
-      Object.keys(typeset).length === 0);
-  if (isDefaultTypeset) {
+  const { localeDetails } = sorted;
+  const isDefaultLocaleDetails =
+    localeDetails === true ||
+    (typeof localeDetails === "object" &&
+      localeDetails !== null &&
+      !Array.isArray(localeDetails) &&
+      Object.keys(localeDetails).length === 0);
+  if (isDefaultLocaleDetails) {
     // `sorted` is a fresh object from `sortKeys`, so it is safe to edit.
-    delete sorted.typeset;
+    delete sorted.localeDetails;
   }
   return JSON.stringify(sorted);
 }
 
 /** Runs the core on one string, with options from `optionsKey`. */
 export function applyOptionsKey(core: Core, text: string, key: string): string {
-  const { typeset, ...hyphenateOptions } = JSON.parse(key) as UseHyphenateOptions;
+  const { localeDetails, ...hyphenateOptions } = JSON.parse(key) as UseHyphenateOptions;
   const [processed] = core.processSegments([text], {
-    typeset: core.resolveTypeset(typeset),
+    localeDetails: core.resolveLocaleDetails(localeDetails),
     hyphenate: hyphenateOptions,
   });
   return processed ?? text;

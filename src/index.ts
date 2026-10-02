@@ -12,18 +12,18 @@ export {
   hyphenateWord,
   NAME_ENDINGS,
 } from "./hyphenate";
-export type { ProcessOptions } from "./process";
-export { processSegments, resolveTypeset } from "./process";
-export { LINKING_SYLLABLES, RAG_LANGUAGE, SHORT_WORDS } from "./rag-language";
-export type { HandlerLimits, RemoteItem, RemoteOptions, RemoteResult } from "./server";
-export { handleSkiptingarRequest, runRemoteItems } from "./server";
-export type { TypesetOptions } from "./typeset";
+export type { LocaleDetailsOptions } from "./locale-details";
 export {
   LOCALE_RULE_COUNT,
   LOCALE_RULES,
+  localeDetails,
+  localeDetailsSegments,
   NUMBER_PREFIXES,
   NUMBER_UNITS,
   SPACED_ABBREVIATIONS,
-  typeset,
-  typesetSegments,
-} from "./typeset";
+} from "./locale-details";
+export type { ProcessOptions } from "./process";
+export { processSegments, resolveLocaleDetails } from "./process";
+export { LINKING_SYLLABLES, RAG_LANGUAGE, SHORT_WORDS } from "./rag-language";
+export type { HandlerLimits, RemoteItem, RemoteOptions, RemoteResult } from "./server";
+export { handleSkiptingarRequest, runRemoteItems } from "./server";

@@ -1,8 +1,8 @@
 /**
- * How fast the core runs: hyphenating and typesetting a long text. Run from
+ * How fast the core runs: hyphenating a long text and adding the locale details. Run from
  * the package folder: `bun run bench`.
  */
-import { hyphenate, typeset } from "../src";
+import { hyphenate, localeDetails } from "../src";
 
 const SENTENCE =
   "Mörður hét maður er kallaður var gígja. Hann var sonur Sighvats hins rauða. Hann bjó á Velli á Rangárvöllum. Hann var ríkur höfðingi og málafylgjumaður mikill og svo mikill lögmaður að engir þóttu löglegir dómar dæmdir nema hann væri við.";
@@ -23,10 +23,10 @@ function time(run: () => unknown): number {
 
 const long = words(20_000);
 const hyphenMs = time(() => hyphenate(long));
-const typesetMs = time(() => typeset(long));
+const localeDetailsMs = time(() => localeDetails(long));
 console.log(
-  `hyphenate: ${Math.round(20_000 / (hyphenMs / 1000)).toLocaleString()} words/s`
+  `hyphenate:     ${Math.round(20_000 / (hyphenMs / 1000)).toLocaleString()} words/s`
 );
 console.log(
-  `typeset:   ${Math.round(20_000 / (typesetMs / 1000)).toLocaleString()} words/s`
+  `localeDetails: ${Math.round(20_000 / (localeDetailsMs / 1000)).toLocaleString()} words/s`
 );

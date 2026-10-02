@@ -32,7 +32,7 @@ function useWorker() {
 }
 
 /**
- * Hyphenates and typesets (unless `typeset: false`) several strings in the
+ * Hyphenates and adds locale details (unless `localeDetails: false`) several strings in the
  * browser, each with its own options: at the endpoint set with
  * `configureSkiptingar`, or with the core, which loads lazily. Until the answers are in, on the server and if
  * every way fails, each text is returned as given and `ready` is false.
@@ -127,7 +127,7 @@ function jobId(text: string, key: string): string {
 }
 
 /**
- * One string, hyphenated and typeset (unless `typeset: false`), with `ready`
+ * One string, hyphenated and given locale details (unless `localeDetails: false`), with `ready`
  * once it is processed: the text as given until then. See `useHyphenateAll`.
  */
 export function useHyphenateResult(
@@ -139,7 +139,7 @@ export function useHyphenateResult(
 }
 
 /**
- * Hyphenates and typesets (unless `typeset: false`) a string in the browser:
+ * Hyphenates and adds locale details (unless `localeDetails: false`) a string in the browser:
  * at the endpoint set with `configureSkiptingar`, or with the core, which
  * loads lazily. Until it is processed, on the server, and if every way
  * fails, the hook returns the text as given. A component that mounts after the core has loaded, or after

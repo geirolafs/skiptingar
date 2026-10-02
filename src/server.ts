@@ -12,16 +12,18 @@
  * ```
  */
 import { analyzeWord, type HyphenateOptions } from "./hyphenate";
+import type { LocaleDetailsOptions } from "./locale-details";
 import { parseExceptions } from "./parse-exceptions";
-import { processSegments, resolveTypeset } from "./process";
-import type { TypesetOptions } from "./typeset";
+import { processSegments, resolveLocaleDetails } from "./process";
 import { findProtectedMask } from "./url";
 
 /**
  * The options a request may carry: what `useHyphenate` takes. A request
- * typesets unless it says `typeset: false`.
+ * adds the locale details unless it says `localeDetails: false`.
  */
-export type RemoteOptions = HyphenateOptions & { typeset?: boolean | TypesetOptions };
+export type RemoteOptions = HyphenateOptions & {
+  localeDetails?: boolean | LocaleDetailsOptions;
+};
 
 /** One job in a request. */
 export type RemoteItem =
@@ -48,9 +50,9 @@ export type HandlerLimits = {
 export function runRemoteItems(items: readonly RemoteItem[]): RemoteResult[] {
   return items.map(item => {
     if (item.op === "process") {
-      const { typeset, ...hyphenate } = item.options ?? {};
+      const { localeDetails, ...hyphenate } = item.options ?? {};
       const [output = item.text] = processSegments([item.text], {
-        typeset: resolveTypeset(typeset),
+        localeDetails: resolveLocaleDetails(localeDetails),
         hyphenate,
       });
       return output;
@@ -110,7 +112,7 @@ const isDictionary: Check = value => {
 
 /**
  * What each option may be. `satisfies` makes a new option in `HyphenateOptions`
- * or `TypesetOptions` a type error here until it is checked: an option the
+ * or `LocaleDetailsOptions` a type error here until it is checked: an option the
  * handler does not know is refused, never passed through.
  */
 const HYPHENATE_CHECKS = {
@@ -126,7 +128,7 @@ const HYPHENATE_CHECKS = {
   skipAcronyms: isBoolean,
 } satisfies Record<keyof HyphenateOptions, Check>;
 
-const TYPESET_CHECKS = {
+const LOCALE_DETAILS_CHECKS = {
   preset: oneOf("default", "typographic"),
   quotes: isBoolean,
   singleLetter: isBoolean,
@@ -138,7 +140,7 @@ const TYPESET_CHECKS = {
   prefixes: isBoolean,
   titles: isBoolean,
   numbers: isBoolean,
-} satisfies Record<keyof TypesetOptions, Check>;
+} satisfies Record<keyof LocaleDetailsOptions, Check>;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -173,18 +175,18 @@ function jobOptionsError(item: RemoteItem): string | undefined {
   if (item.op === "analyze") {
     return optionsError("options", options, HYPHENATE_CHECKS);
   }
-  // `typeset` is the one key a process job has beyond the hyphenate options.
+  // `localeDetails` is the one key a process job has beyond the hyphenate options.
   const error = optionsError("options", options, {
     ...HYPHENATE_CHECKS,
-    typeset: () => true,
+    localeDetails: () => true,
   });
   if (error !== undefined || !isRecord(options)) {
     return error;
   }
-  const { typeset } = options;
-  return typeset === undefined || typeof typeset === "boolean"
+  const { localeDetails } = options;
+  return localeDetails === undefined || typeof localeDetails === "boolean"
     ? undefined
-    : optionsError("options.typeset", typeset, TYPESET_CHECKS);
+    : optionsError("options.localeDetails", localeDetails, LOCALE_DETAILS_CHECKS);
 }
 
 function isItem(value: unknown): value is RemoteItem {

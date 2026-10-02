@@ -1,6 +1,25 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-10-02)
+
+Breaking: `typeset` is now `localeDetails` everywhere, so the code uses the
+same name as the docs. The old names are gone, with no aliases. A client and
+a server must both be on 0.2.0, because the key in the endpoint request
+changed.
+
+- `typeset()` is now `localeDetails()`
+- `typesetSegments()` is now `localeDetailsSegments()`
+- `resolveTypeset()` is now `resolveLocaleDetails()`
+- `TypesetOptions` is now `LocaleDetailsOptions`
+- `<Typeset>` is now `<LocaleDetails>`, and `TypesetProps` is now
+  `LocaleDetailsProps`
+- The `typeset` option is now `localeDetails`: the prop of `<Hyphenate>`, the
+  option of `processSegments`, the client hooks and `RemoteOptions`, and the
+  `typeset` key in the endpoint request JSON. The values are the same: `true`
+  or left out is the default rules, an options object sets rules, `false`
+  hyphenates only.
+
+Also in this release:
 
 - README: the "Locale details" layer now names every rule it applies,
   says kennitölur and phone numbers get a no-break hyphen, not a space, and

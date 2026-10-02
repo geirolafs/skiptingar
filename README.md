@@ -60,7 +60,7 @@ export default function Page() {
 ```
 
 Wrap the text in `<Hyphenate>` where the page renders on the server. It adds
-all three layers. Pass `typeset={false}` to leave out the locale details.
+all three layers. Pass `localeDetails={false}` to leave out the locale details.
 `text-balance` and `text-pretty` are Tailwind's names for CSS `text-wrap`.
 Add `<CleanCopy />` once, so copied text has no soft hyphens.
 
@@ -83,14 +83,14 @@ Three layers, all on the server and all on by default:
    with its name (`dr. Jón`). A no-break hyphen keeps kennitölur and phone
    numbers whole (`011390-2939`, `588-5522`). Straight quotes become Icelandic
    `„…“`, and a hyphen in a range becomes an en dash (`1990–2000`). This is
-   `typeset()` in the API; `hyphenate()` alone does not do it. It is on by
-   default in `<Hyphenate>` (`typeset={false}` turns it off) and in the client
-   hooks and the endpoint (`typeset: false`). Eight rules are on by default and
-   two, `singleLetter` and `lastWords`, are off. Each one can be turned on or
-   off on its own; see
+   `localeDetails()` in the API; `hyphenate()` alone does not do it. It is on
+   by default in `<Hyphenate>` (`localeDetails={false}` turns it off) and in
+   the client hooks and the endpoint (`localeDetails: false`). Eight rules are
+   on by default and two, `singleLetter` and `lastWords`, are off. Each one can
+   be turned on or off on its own; see
    [Where Icelandic doesn't break](#where-icelandic-doesnt-break).
 
-Then **CSS `text-wrap`**, which we recommend. It is your CSS, not package
+Then **CSS `text-wrap`**, which I recommend. It is your CSS, not package
 code. Soft hyphens only say where a line may break, and the browser still picks
 the break on each line. `text-wrap: pretty` for body text and `balance` for
 titles help it choose. See [CSS to pair it with](#css-to-pair-it-with).
@@ -137,7 +137,7 @@ badly:
 | Last two words | no one-word last line | `lastWords`, off |
 
 `{ preset: "typographic" }` also turns on the two rules that are off by
-default. This `typeset` preset is not the same thing as `rules: "typographic"`
+default. This `localeDetails` preset is not the same thing as `rules: "typographic"`
 in `hyphenate()`, which gives better breaks. Prefer `text-wrap: pretty` to
 `lastWords` where the browser supports it.
 
@@ -149,7 +149,7 @@ they have no spaces, so they never break across lines.
 
 The layers never touch URLs, email addresses or domains, and running any of
 them twice gives the same result. Input becomes NFC first, so decomposed
-letters, like those in macOS file names, still hyphenate and typeset.
+letters, like those in macOS file names, still hyphenate and add the locale details.
 
 ## Entry points
 
@@ -158,8 +158,8 @@ nothing to the browser.
 
 | Entry | Where | What |
 | --- | --- | --- |
-| `skiptingar` | Anywhere: Node, the edge, a build step | `hyphenate()`, `typeset()`, `processSegments()` and `analyzeWord()`: plain functions on strings, and `handleSkiptingarRequest()`, the endpoint for the client |
-| `skiptingar/react` | React Server Components | `<Hyphenate>` (all three layers) and `<Typeset>` (locale details only) |
+| `skiptingar` | Anywhere: Node, the edge, a build step | `hyphenate()`, `localeDetails()`, `processSegments()` and `analyzeWord()`: plain functions on strings, and `handleSkiptingarRequest()`, the endpoint for the client |
+| `skiptingar/react` | React Server Components | `<Hyphenate>` (all three layers) and `<LocaleDetails>` (locale details only) |
 | `skiptingar/client` | The browser | `useHyphenate()` and its sibling hooks for text that exists only in the browser, `configureSkiptingar()` to use a server endpoint, `<CleanCopy />`, and the Icelandic word lists for `settle-rag` |
 
 ## API
@@ -167,16 +167,16 @@ nothing to the browser.
 ### Plain functions: `skiptingar`
 
 ```ts
-import { hyphenate, typeset } from "skiptingar";
+import { hyphenate, localeDetails } from "skiptingar";
 
 hyphenate("Hraðbrautarframkvæmdir á landsbyggðinni");
 // "Hrað­brautar­fram­kvæmdir á lands­byggð­inni"
 
-typeset('Verð 1.000 kr. frá 30. september, sagði "hann"');
+localeDetails('Verð 1.000 kr. frá 30. september, sagði "hann"');
 // no-break spaces in "1.000 kr." and "30. september", quotes become „hann“
 ```
 
-`hyphenate(text, options)` puts in the soft hyphens. It never typesets.
+`hyphenate(text, options)` puts in the soft hyphens. It never adds the locale details.
 
 | Option | Default | |
 | --- | --- | --- |
@@ -195,7 +195,7 @@ a compound joint, which is a break too:
 A word in your `dictionary` replaces the pattern result, and a malformed line
 throws.
 
-`typeset(text, options)` adds the locale details and never hyphenates. It
+`localeDetails(text, options)` adds the locale details and never hyphenates. It
 swaps characters one for one (after turning the text into NFC), with one
 difference: the `dashes` rule also adds an invisible word joiner (U+2060)
 after the en dash of a range, so `1990-2000` becomes `1990–⁠2000`, one
@@ -210,22 +210,23 @@ source code: `SOFT_HYPHEN` (U+00AD), `NO_BREAK_SPACE` (U+00A0) and
 ```ts
 import { processSegments } from "skiptingar";
 
-processSegments(["Hraðbrautar", "framkvæmdir"], { hyphenate: {}, typeset: {} });
+processSegments(["Hraðbrautar", "framkvæmdir"], { hyphenate: {}, localeDetails: {} });
 // ["Hrað­brautar­", "fram­kvæmdir"]
 ```
 
 This is what `<Hyphenate>` runs on each run of text. Give it the text pieces
 of one run (for example the text nodes of a paragraph split by `<em>`). It puts
-each piece in NFC, removes soft hyphens, typesets across the pieces, then
-hyphenates the joined text and cuts the breaks back into the pieces. So a word
-split by markup breaks like the whole word, and a web address split by markup
-is still found. A break on the border between two pieces goes at the end of the
+each piece in NFC, removes soft hyphens, adds the locale details across the
+pieces, then hyphenates the joined text and cuts the breaks back into the
+pieces. So a word split by markup breaks like the whole word, and a web address
+split by markup is still found. A break on the border between two pieces goes at the end of the
 earlier piece. It returns one string for each piece. Pass `false`, or leave out
-`hyphenate` or `typeset`, to skip that step: unlike the components, it
-typesets only when you give it `typeset`. `resolveTypeset(true | false |
-options)` turns the `typeset` prop of the components into these options; left
-out, it is on (`{}`). `breakOffsets(text, options)` is the lower level: the
-offsets where `hyphenate()` would insert a break.
+`hyphenate` or `localeDetails`, to skip that step: unlike the components, it
+adds the locale details only when you give it `localeDetails`.
+`resolveLocaleDetails(true | false | options)` turns the `localeDetails` prop
+of the components into these options; left out, it is on (`{}`).
+`breakOffsets(text, options)` is the lower level: the offsets where
+`hyphenate()` would insert a break.
 
 #### One word: `analyzeWord`
 
@@ -255,11 +256,11 @@ import { Hyphenate } from "skiptingar/react";
 ```
 
 `<Hyphenate>` walks the JSX you give it and changes only text. It hyphenates,
-and, unless you pass `typeset={false}`, adds the locale details; `typeset={{
-… }}` sets their rules. `<Typeset>` adds the locale details only.
-`<Hyphenate>` takes the `hyphenate()` options except `hyphenChar`, plus
-`typeset` and `lang`. Quotes pair across inline elements, and a word split by
-inline markup
+and, unless you pass `localeDetails={false}`, adds the locale details;
+`localeDetails={{ … }}` sets their rules. `<LocaleDetails>` adds the locale
+details only. `<Hyphenate>` takes the `hyphenate()` options except
+`hyphenChar`, plus `localeDetails` and `lang`. Quotes pair across inline
+elements, and a word split by inline markup
 (`hest<span>arnir</span>`) is hyphenated as one word.
 
 It skips `code`, `pre`, `kbd`, `samp`, `var`, `script`, `style`, `textarea`,
@@ -294,7 +295,7 @@ function Caption({ text }: { text: string }) {
 ```
 
 Use this for text that exists only in the browser, like something a user
-types. It adds the locale details too, unless you pass `typeset: false`. The
+types. It adds the locale details too, unless you pass `localeDetails: false`. The
 patterns load lazily the first time: <!-- size:patterns -->49.8 kB<!-- /size --> brotli for the core and its
 patterns, while the client entry itself is <!-- size:client -->3.1 kB<!-- /size --> brotli. Until then the hook
 returns the text as it is, and so it does if the chunk fails to load. The next
@@ -409,7 +410,7 @@ h2 {
 }
 * {
   hyphens: manual;
-} /* the default: use our breaks, add none */
+} /* the default: use the soft hyphens, add none */
 ```
 
 `text-wrap: pretty` stops a paragraph from ending on one short word (Chrome
@@ -428,7 +429,7 @@ announce them), so test with yours.
   earlier). The client entry has the same limit. Server-side use has no
   browser limit.
 - **Fonts.** Check that your font has U+00A0, the no-break space, and U+2011,
-  the no-break hyphen `typeset()` puts in kennitala and phone numbers. Many
+  the no-break hyphen `localeDetails()` puts in kennitala and phone numbers. Many
   fonts have no U+2011 (ABC Areal and Bespoke Serif among them), and the
   browser then draws that hyphen from a fallback font.
 
@@ -451,7 +452,7 @@ what to use instead of writing it yourself.
   þ→th, ð→d, æ→ae and ö→o, the ÍST 130 table.
 - **Names in a sentence** (`til Jóns`, `Jóni`) need declension. Use
   [beygla](https://www.npmjs.com/package/beygla).
-- **Kennitala.** Format it (`typeset()` keeps `011390-2939` on one line), but
+- **Kennitala.** Format it (`localeDetails()` keeps `011390-2939` on one line), but
   do not validate the check digit. Þjóðskrá stopped using it for new numbers on
   18 February 2026. See
   [kennitölur án vartölu](https://www.skra.is/folk/eg-i-thjodskra/um-kennitolur/kennitolur-an-vartolu/).
@@ -476,7 +477,7 @@ what to use instead of writing it yourself.
 Nothing here is promised.
 
 - **Markdown and HTML.** A rehype plugin and a small CLI that hyphenate and
-  typeset, for sites that are not built with React.
+  add the locale details, for sites that are not built with React.
 - **More opinionated breaks.** The first version follows the official
   spelling rules and adds better breaks. Later: a list of words with corrected
   breaks, a skip for all-caps acronyms such as UNESCO, and a heading mode that

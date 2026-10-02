@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { NUMBER_UNITS, SPACED_ABBREVIATIONS, typeset, typesetSegments } from "../src";
-import { NUMBER_PREFIXES } from "../src/typeset";
+import {
+  localeDetails,
+  localeDetailsSegments,
+  NUMBER_UNITS,
+  SPACED_ABBREVIATIONS,
+} from "../src";
+import { NUMBER_PREFIXES } from "../src/locale-details";
 
 const NB = " ";
 
@@ -23,7 +28,7 @@ describe("rule 1: number and unit", () => {
     ["Fundur í 2 klst. í dag", "Fundur í 2~klst. í dag"],
     ["Verð 2,5 kr", "Verð 2,5~kr"],
   ])("binds %p", (input, expected) => {
-    expect(show(typeset(input))).toBe(expected);
+    expect(show(localeDetails(input))).toBe(expected);
   });
 
   test.each([
@@ -36,7 +41,7 @@ describe("rule 1: number and unit", () => {
     "Úti er 17 ° hiti",
     "Afsláttur 50% í dag",
   ])("leaves %p alone", input => {
-    expect(typeset(input)).toBe(input);
+    expect(localeDetails(input)).toBe(input);
   });
 
   test("the unit list is exported and covers the required units", () => {
@@ -80,7 +85,7 @@ describe("rule 2: ordinals and dates", () => {
     ["Þann 30. september 2026", "Þann 30.~september~2026"],
     ["Í Janúar 2026", "Í Janúar~2026"],
   ])("binds %p", (input, expected) => {
-    expect(show(typeset(input))).toBe(expected);
+    expect(show(localeDetails(input))).toBe(expected);
   });
 
   test.each([
@@ -89,7 +94,7 @@ describe("rule 2: ordinals and dates", () => {
     "Í september 20260 manns",
     "Í september kom hún",
   ])("leaves %p alone", input => {
-    expect(typeset(input)).toBe(input);
+    expect(localeDetails(input)).toBe(input);
   });
 });
 
@@ -108,7 +113,7 @@ describe("abbreviation and number", () => {
     ["(sjá bls. 12)", "(sjá bls.~12)"],
     ["bls. 12", "bls.~12"],
   ])("binds %p", (input, expected) => {
-    expect(show(typeset(input))).toBe(expected);
+    expect(show(localeDetails(input))).toBe(expected);
   });
 
   test.each([
@@ -120,7 +125,7 @@ describe("abbreviation and number", () => {
     "Sjá bls. hér 12",
     "Það var ca. tuttugu",
   ])("leaves %p alone", input => {
-    expect(typeset(input)).toBe(input);
+    expect(localeDetails(input)).toBe(input);
   });
 
   test("never changes text inside a URL", () => {
@@ -128,19 +133,19 @@ describe("abbreviation and number", () => {
       "https://example.is/nr. 5",
       "Sjá www.example.is/nr.%205 nr. x",
     ]) {
-      expect(typeset(input)).toBe(input);
+      expect(localeDetails(input)).toBe(input);
     }
   });
 
   test("is idempotent and keeps the length", () => {
     const text = "Sjá bls. 12, nr. 5 og kl. 14:30, u.þ.b. 50 stöðum";
-    const once = typeset(text);
+    const once = localeDetails(text);
     expect(once).toHaveLength(text.length);
-    expect(typeset(once)).toBe(once);
+    expect(localeDetails(once)).toBe(once);
   });
 
   test("works across segment borders", () => {
-    expect(typesetSegments(["Sjá bls.", " 12 og nr. ", "5"]).map(show)).toEqual([
+    expect(localeDetailsSegments(["Sjá bls.", " 12 og nr. ", "5"]).map(show)).toEqual([
       "Sjá bls.",
       "~12 og nr.~",
       "5",
@@ -148,7 +153,7 @@ describe("abbreviation and number", () => {
   });
 
   test("bls. works before a number (page 12) and after one (300 pages)", () => {
-    expect(show(typeset("Sjá bls. 12 og 300 bls. bók"))).toBe(
+    expect(show(localeDetails("Sjá bls. 12 og 300 bls. bók"))).toBe(
       "Sjá bls.~12 og 300~bls. bók"
     );
   });
@@ -174,15 +179,15 @@ describe("standard abbreviations without spaces", () => {
   const STANDARD = "t.d. o.s.frv. þ.e. þ.e.a.s. m.a. o.fl. u.þ.b. a.m.k.";
 
   test("pass through byte-identical", () => {
-    expect(typeset(STANDARD)).toBe(STANDARD);
-    expect(typeset(STANDARD, { dashes: true, singleLetter: true })).toBe(STANDARD);
+    expect(localeDetails(STANDARD)).toBe(STANDARD);
+    expect(localeDetails(STANDARD, { dashes: true, singleLetter: true })).toBe(STANDARD);
     const sentence = "Taktu með t.d. vatn, nesti o.s.frv. og fleira, þ.e.a.s. mat.";
-    expect(typeset(sentence)).toBe(sentence);
+    expect(localeDetails(sentence)).toBe(sentence);
   });
 
   test("are not treated as domains", () => {
     const text = 'Hann sagði "t.d. o.s.frv. þ.e.a.s. u.þ.b." og fór 1990-2000';
-    expect(typeset(text, { dashes: true })).toBe(
+    expect(localeDetails(text, { dashes: true })).toBe(
       "Hann sagði „t.d. o.s.frv. þ.e.a.s. u.þ.b.“ og fór 1990–\u20602000"
     );
   });
@@ -199,13 +204,13 @@ describe("older spaced abbreviations (tolerated, not standard)", () => {
     ["Um u. þ. b. tíu", "Um u.~þ.~b. tíu"],
     ["Að a. m. k. tveir", "Að a.~m.~k. tveir"],
   ])("binds %p", (input, expected) => {
-    expect(show(typeset(input))).toBe(expected);
+    expect(show(localeDetails(input))).toBe(expected);
   });
 
   test.each(["Hann hét. d. eitt", "Lokað. e. Opið", "Það er þ. eitthvað"])(
     "leaves %p alone",
     input => {
-      expect(typeset(input)).toBe(input);
+      expect(localeDetails(input)).toBe(input);
     }
   );
 
@@ -222,11 +227,11 @@ describe("rule 4: titles", () => {
     ["Sjá próf. Anna", "Sjá próf.~Anna"],
     ["Sjá hr. Jón", "Sjá hr.~Jón"],
   ])("binds %p", (input, expected) => {
-    expect(show(typeset(input))).toBe(expected);
+    expect(show(localeDetails(input))).toBe(expected);
   });
 
   test.each(["Sjá dr. jón", "Sjá sandr. Jón", "Sjá dr. 5"])("leaves %p alone", input => {
-    expect(typeset(input)).toBe(input);
+    expect(localeDetails(input)).toBe(input);
   });
 });
 
@@ -240,21 +245,25 @@ describe("rule 5: quotes", () => {
     ["“Hann sagði ‘nei’ við mig”", "„Hann sagði ‚nei‘ við mig“"],
     ['"it\'s fine"', "„it's fine“"],
   ])("converts %p", (input, expected) => {
-    expect(typeset(input)).toBe(expected);
+    expect(localeDetails(input)).toBe(expected);
   });
 
   test("a paired single quote outside double quotes marks a meaning: ‚…‘", () => {
-    expect(typeset("Orðið fákur merkir 'hestur'.")).toBe("Orðið fákur merkir ‚hestur‘.");
-    expect(typeset("Hann sagði 'nei' við mig")).toBe("Hann sagði ‚nei‘ við mig");
-    expect(typeset("Orðið fákur merkir ‘hestur’.")).toBe("Orðið fákur merkir ‚hestur‘.");
-    expect(typeset("Sjá 'nr. 5' hér")).toBe(`Sjá ‚nr.${NB}5‘ hér`);
+    expect(localeDetails("Orðið fákur merkir 'hestur'.")).toBe(
+      "Orðið fákur merkir ‚hestur‘."
+    );
+    expect(localeDetails("Hann sagði 'nei' við mig")).toBe("Hann sagði ‚nei‘ við mig");
+    expect(localeDetails("Orðið fákur merkir ‘hestur’.")).toBe(
+      "Orðið fákur merkir ‚hestur‘."
+    );
+    expect(localeDetails("Sjá 'nr. 5' hér")).toBe(`Sjá ‚nr.${NB}5‘ hér`);
   });
 
   test("a meaning quote and a double quote in the same text", () => {
-    expect(typeset("Orðið 'fákur' merkir \"hestur\", sagði hún.")).toBe(
+    expect(localeDetails("Orðið 'fákur' merkir \"hestur\", sagði hún.")).toBe(
       "Orðið ‚fákur‘ merkir „hestur“, sagði hún."
     );
-    expect(typeset("\"komdu 'strax' heim\"")).toBe("„komdu ‚strax‘ heim“");
+    expect(localeDetails("\"komdu 'strax' heim\"")).toBe("„komdu ‚strax‘ heim“");
   });
 
   test("meaning quotes are idempotent and cross segment borders", () => {
@@ -263,19 +272,19 @@ describe("rule 5: quotes", () => {
       "Orðið 'fákur' merkir \"hestur\", sagði hún.",
       "rock 'n' roll og 'twas",
     ]) {
-      expect(typeset(typeset(input))).toBe(typeset(input));
+      expect(localeDetails(localeDetails(input))).toBe(localeDetails(input));
     }
-    const segments = typesetSegments(["Orðið fákur merkir '", "hestur", "'."]);
+    const segments = localeDetailsSegments(["Orðið fákur merkir '", "hestur", "'."]);
     expect(segments).toEqual(["Orðið fákur merkir ‚", "hestur", "‘."]);
-    expect(typesetSegments(segments)).toEqual(segments);
+    expect(localeDetailsSegments(segments)).toEqual(segments);
   });
 
   test("an unopened closing single quote is left alone", () => {
-    expect(typeset('"hundanna\' skál"')).toBe("„hundanna' skál“");
+    expect(localeDetails('"hundanna\' skál"')).toBe("„hundanna' skál“");
   });
 
   test("pairs quotes across segment borders", () => {
-    expect(typesetSegments(['Hann sagði "', "orð", '" og fór'])).toEqual([
+    expect(localeDetailsSegments(['Hann sagði "', "orð", '" og fór'])).toEqual([
       "Hann sagði „",
       "orð",
       "“ og fór",
@@ -283,48 +292,50 @@ describe("rule 5: quotes", () => {
   });
 
   test("can be turned off", () => {
-    expect(typeset('Hann sagði "orð"', { quotes: false })).toBe('Hann sagði "orð"');
+    expect(localeDetails('Hann sagði "orð"', { quotes: false })).toBe('Hann sagði "orð"');
   });
 });
 
 describe("rule 6: single-letter words (opt-in)", () => {
   test("binds one-letter words when enabled", () => {
-    expect(show(typeset("Hann fór á fund í dag", { singleLetter: true }))).toBe(
+    expect(show(localeDetails("Hann fór á fund í dag", { singleLetter: true }))).toBe(
       "Hann fór á~fund í~dag"
     );
   });
 
   test("is off by default", () => {
-    expect(typeset("Hann fór á fund í dag")).toBe("Hann fór á fund í dag");
+    expect(localeDetails("Hann fór á fund í dag")).toBe("Hann fór á fund í dag");
   });
 
   test("leaves longer words alone", () => {
     const text = "Þetta er gott";
-    expect(typeset(text, { singleLetter: true })).toBe(text);
+    expect(localeDetails(text, { singleLetter: true })).toBe(text);
   });
 });
 
 describe("rule 7: last two words (opt-in)", () => {
   test("binds the last two words when enabled", () => {
-    expect(show(typeset("Hann kom heim.", { lastWords: true }))).toBe("Hann kom~heim.");
+    expect(show(localeDetails("Hann kom heim.", { lastWords: true }))).toBe(
+      "Hann kom~heim."
+    );
   });
 
   test("works across segments", () => {
-    const out = typesetSegments(["Hann kom ", "heim."], { lastWords: true });
+    const out = localeDetailsSegments(["Hann kom ", "heim."], { lastWords: true });
     expect(out.map(show)).toEqual(["Hann kom~", "heim."]);
   });
 
   test("is off by default", () => {
-    expect(typeset("Hann kom heim.")).toBe("Hann kom heim.");
+    expect(localeDetails("Hann kom heim.")).toBe("Hann kom heim.");
   });
 
   test("skips a last word longer than ten letters", () => {
     const text = "Hann sá þjóðfélagsumræða";
-    expect(typeset(text, { lastWords: true })).toBe(text);
+    expect(localeDetails(text, { lastWords: true })).toBe(text);
   });
 
   test("skips a single word", () => {
-    expect(typeset("Heim.", { lastWords: true })).toBe("Heim.");
+    expect(localeDetails("Heim.", { lastWords: true })).toBe("Heim.");
   });
 });
 
@@ -333,7 +344,7 @@ describe("rule 8: dashes", () => {
     ["Árin 1990-2000 voru góð", "Árin 1990–\u20602000 voru góð"],
     ["Reykjavík - Akureyri", "Reykjavík\u00a0– Akureyri"],
   ])("converts %p", (input, expected) => {
-    expect(typeset(input, { dashes: true })).toBe(expected);
+    expect(localeDetails(input, { dashes: true })).toBe(expected);
   });
 
   test.each([
@@ -342,7 +353,7 @@ describe("rule 8: dashes", () => {
     "Hún fór - 5 - 3",
     "https://example.is/1990-2000",
   ])("leaves %p alone", input => {
-    expect(typeset(input, { dashes: true })).toBe(input);
+    expect(localeDetails(input, { dashes: true })).toBe(input);
   });
 
   test.each([
@@ -352,7 +363,7 @@ describe("rule 8: dashes", () => {
     ["Sjá 5-10 manns", "Sjá 5–\u206010 manns"],
     ["(5-10)", "(5–\u206010)"],
   ])("still converts the range in %p", (input, expected) => {
-    expect(show(typeset(input, { dashes: true }))).toBe(expected);
+    expect(show(localeDetails(input, { dashes: true }))).toBe(expected);
   });
 
   test.each([
@@ -365,12 +376,14 @@ describe("rule 8: dashes", () => {
     "12-34CD",
     "AB12-34",
   ])("a hyphen that touches a letter or a part number is not a range: %p", input => {
-    expect(typeset(input, { dashes: true })).toBe(input);
+    expect(localeDetails(input, { dashes: true })).toBe(input);
   });
 
   test("a phone number and a kennitala keep their hyphen with the numbers rule off", () => {
     for (const input of ["Sími 555-1234", "Kt. 010190-2939"]) {
-      expect(typeset(input, { dashes: true, numbers: false })).not.toContain("–\u2060");
+      expect(localeDetails(input, { dashes: true, numbers: false })).not.toContain(
+        "–\u2060"
+      );
     }
   });
 
@@ -378,23 +391,23 @@ describe("rule 8: dashes", () => {
     // With the numbers rule off they keep the plain hyphen. With it on (the
     // default) they get U+2011, which is not an en dash either.
     for (const input of ["Sími 555-1234", "Kennitala 010101-2939"]) {
-      expect(typeset(input, { dashes: true, numbers: false })).toBe(input);
-      expect(typeset(input, { dashes: true })).toBe(input.replace("-", "\u2011"));
-      expect(typeset(input, { dashes: true })).not.toContain("–\u2060");
+      expect(localeDetails(input, { dashes: true, numbers: false })).toBe(input);
+      expect(localeDetails(input, { dashes: true })).toBe(input.replace("-", "\u2011"));
+      expect(localeDetails(input, { dashes: true })).not.toContain("–\u2060");
     }
   });
 
   test("is on by default", () => {
-    expect(show(typeset("Árin 1990-2000 og a - b"))).toBe(
+    expect(show(localeDetails("Árin 1990-2000 og a - b"))).toBe(
       "Árin 1990–\u20602000 og a~– b"
     );
-    expect(typeset("Árin 1990-2000 og a - b")).toBe(
-      typeset("Árin 1990-2000 og a - b", { dashes: true })
+    expect(localeDetails("Árin 1990-2000 og a - b")).toBe(
+      localeDetails("Árin 1990-2000 og a - b", { dashes: true })
     );
   });
 
   test("dashes: false leaves ranges and spaced hyphens alone", () => {
-    expect(typeset("Árin 1990-2000 og a - b", { dashes: false })).toBe(
+    expect(localeDetails("Árin 1990-2000 og a - b", { dashes: false })).toBe(
       "Árin 1990-2000 og a - b"
     );
   });
@@ -412,7 +425,7 @@ describe("numbers: kennitala and phone numbers stay on one line", () => {
     ["+354 555-1234", `+354${NB}555${NBH}1234`],
     ["Kt. 010190-2939, sími 555-1234.", `Kt.${NB}010190${NBH}2939, sími 555${NBH}1234.`],
   ])("binds %p", (input, expected) => {
-    expect(typeset(input)).toBe(expected);
+    expect(localeDetails(input)).toBe(expected);
   });
 
   test.each([
@@ -427,7 +440,7 @@ describe("numbers: kennitala and phone numbers stay on one line", () => {
   ])("leaves %p alone", input => {
     // With dashes off: on by default it reads a hyphen that is not a phone
     // number or kennitala shape ("555-12345", "55-1234") as a range.
-    expect(typeset(input, { dashes: false })).toBe(input);
+    expect(localeDetails(input, { dashes: false })).toBe(input);
   });
 
   test("leaves numbers inside a URL alone", () => {
@@ -436,24 +449,27 @@ describe("numbers: kennitala and phone numbers stay on one line", () => {
       "Sjá www.example.is/010190-2939 núna",
       "example.is/555 1234",
     ]) {
-      expect(typeset(input)).toBe(input);
+      expect(localeDetails(input)).toBe(input);
     }
   });
 
   test("is idempotent, keeps the length and works across segments", () => {
     const text = "kt. 010190-2939, sími 555-1234 eða +354 555 1234";
-    const once = typeset(text);
+    const once = localeDetails(text);
     expect(once).toHaveLength(text.length);
-    expect(typeset(once)).toBe(once);
-    expect(typesetSegments(["sími 555-", "1234"])).toEqual([`sími 555${NBH}`, "1234"]);
+    expect(localeDetails(once)).toBe(once);
+    expect(localeDetailsSegments(["sími 555-", "1234"])).toEqual([
+      `sími 555${NBH}`,
+      "1234",
+    ]);
   });
 
   test("can be turned off", () => {
-    expect(typeset("sími 555-1234", { numbers: false })).toBe("sími 555-1234");
+    expect(localeDetails("sími 555-1234", { numbers: false })).toBe("sími 555-1234");
   });
 
   test("a range becomes an en dash while a phone number keeps its hyphen", () => {
-    expect(typeset("Árin 1990-2000 og sími 555-1234")).toBe(
+    expect(localeDetails("Árin 1990-2000 og sími 555-1234")).toBe(
       `Árin 1990–\u20602000 og sími 555${NBH}1234`
     );
   });
@@ -469,25 +485,31 @@ describe("review regressions", () => {
     "sími 555-1234b",
     "x+354 555 1234",
   ])("numbers leaves %p alone (letters or digits of any script next to it)", input => {
-    expect(typeset(input)).toBe(input);
+    expect(localeDetails(input)).toBe(input);
   });
 
   test("numbers still binds a number that stands alone next to punctuation", () => {
-    expect(typeset("(555-1234)")).toBe(`(555${NBH}1234)`);
-    expect(typeset("sími: 555-1234.")).toBe(`sími: 555${NBH}1234.`);
+    expect(localeDetails("(555-1234)")).toBe(`(555${NBH}1234)`);
+    expect(localeDetails("sími: 555-1234.")).toBe(`sími: 555${NBH}1234.`);
   });
 
   test("a curly right single quote is never an opener", () => {
-    expect(typeset("Ég sá ’ann skella’ á nösum.")).toBe("Ég sá ’ann skella’ á nösum.");
-    expect(typeset("Orðið fákur merkir ‘hestur’.")).toBe("Orðið fákur merkir ‚hestur‘.");
-    expect(typeset("Orðið fákur merkir 'hestur'.")).toBe("Orðið fákur merkir ‚hestur‘.");
+    expect(localeDetails("Ég sá ’ann skella’ á nösum.")).toBe(
+      "Ég sá ’ann skella’ á nösum."
+    );
+    expect(localeDetails("Orðið fákur merkir ‘hestur’.")).toBe(
+      "Orðið fákur merkir ‚hestur‘."
+    );
+    expect(localeDetails("Orðið fákur merkir 'hestur'.")).toBe(
+      "Orðið fákur merkir ‚hestur‘."
+    );
   });
 
   test("a quoted URL is idempotent: the closer written by pass 1 stays outside the URL", () => {
     const input = "Sjá ‘https://example.is/x’ og hundanna' skál.";
-    const once = typeset(input);
+    const once = localeDetails(input);
     expect(once).toBe("Sjá ‚https://example.is/x‘ og hundanna' skál.");
-    expect(typeset(once)).toBe(once);
+    expect(localeDetails(once)).toBe(once);
   });
 
   test("typographic quotes at the end of a URL are not part of it", () => {
@@ -496,10 +518,10 @@ describe("review regressions", () => {
       ["‚https://example.is/x‘ núna", "‚https://example.is/x‘ núna"],
       ["“https://example.is/x” núna", "„https://example.is/x“ núna"],
     ] as const) {
-      expect(typeset(input, { dashes: true })).toBe(expected);
+      expect(localeDetails(input, { dashes: true })).toBe(expected);
     }
     // The URL itself is untouched even with quotes hugging it.
-    expect(typeset('"https://example.is/1990-2000"', { dashes: true })).toBe(
+    expect(localeDetails('"https://example.is/1990-2000"', { dashes: true })).toBe(
       "„https://example.is/1990-2000“"
     );
   });
@@ -511,14 +533,14 @@ describe("review regressions", () => {
     "Sjá ‚nr. 5‘ hér",
     "(nr. 5)",
   ])("a number prefix after an opening quote or bracket is bound: %p", input => {
-    expect(typeset(input)).toContain(`nr.${NB}5`);
+    expect(localeDetails(input)).toContain(`nr.${NB}5`);
   });
 
   test("Sjá 'nr. 5'. gives the no-break space and the meaning quotes", () => {
-    expect(typeset("Sjá 'nr. 5'.")).toBe(`Sjá ‚nr.${NB}5‘.`);
+    expect(localeDetails("Sjá 'nr. 5'.")).toBe(`Sjá ‚nr.${NB}5‘.`);
   });
 
-  test("typeset(typeset(x)) equals typeset(x) for tricky inputs", () => {
+  test("localeDetails(localeDetails(x)) equals localeDetails(x) for tricky inputs", () => {
     const inputs = [
       "Sjá ‘https://example.is/x’ og hundanna' skál.",
       "Ég sá ’ann skella’ á nösum.",
@@ -536,8 +558,8 @@ describe("review regressions", () => {
     ];
     for (const input of inputs) {
       for (const options of [{}, { preset: "typographic" } as const]) {
-        const once = typeset(input, options);
-        expect(typeset(once, options)).toBe(once);
+        const once = localeDetails(input, options);
+        expect(localeDetails(once, options)).toBe(once);
       }
     }
   });
@@ -549,11 +571,11 @@ describe("sep. as a September abbreviation", () => {
     ["Þann 30. sept. 2026", `Þann 30.${NB}sept.${NB}2026`],
     ["Í sep. 2026 kom hún", `Í sep.${NB}2026 kom hún`],
   ])("binds %p", (input, expected) => {
-    expect(typeset(input)).toBe(expected);
+    expect(localeDetails(input)).toBe(expected);
   });
 
   test("leaves sep. without a year alone", () => {
-    expect(typeset("Í sep. kom hún")).toBe("Í sep. kom hún");
+    expect(localeDetails("Í sep. kom hún")).toBe("Í sep. kom hún");
   });
 });
 
@@ -561,17 +583,19 @@ describe("options", () => {
   const text = 'Hann fór á "fund" 1990-2000 og kom heim.';
 
   test("the default sets ranges but leaves one-letter words and the last two words", () => {
-    expect(show(typeset(text))).toBe("Hann fór á „fund“ 1990–\u20602000 og kom heim.");
+    expect(show(localeDetails(text))).toBe(
+      "Hann fór á „fund“ 1990–\u20602000 og kom heim."
+    );
   });
 
   test("the typographic preset turns on the rules that are off by default", () => {
-    expect(show(typeset(text, { preset: "typographic" }))).toBe(
+    expect(show(localeDetails(text, { preset: "typographic" }))).toBe(
       "Hann fór á~„fund“ 1990–\u20602000 og kom~heim."
     );
   });
 
   test("an explicit option beats the preset", () => {
-    const out = typeset(text, { preset: "typographic", dashes: false });
+    const out = localeDetails(text, { preset: "typographic", dashes: false });
     expect(out).toContain("1990-2000");
   });
 });
@@ -579,29 +603,33 @@ describe("options", () => {
 describe("quote regressions", () => {
   test("a single quote right after an opening double quote converts on the first run", () => {
     const input = "\"'nei'\"";
-    expect(typeset(input)).toBe("„‚nei‘“");
-    expect(typeset(typeset(input))).toBe(typeset(input));
-    const segments = typesetSegments(['"', "'nei'", '"']);
+    expect(localeDetails(input)).toBe("„‚nei‘“");
+    expect(localeDetails(localeDetails(input))).toBe(localeDetails(input));
+    const segments = localeDetailsSegments(['"', "'nei'", '"']);
     expect(segments).toEqual(["„", "‚nei‘", "“"]);
-    expect(typesetSegments(segments)).toEqual(segments);
+    expect(localeDetailsSegments(segments)).toEqual(segments);
   });
 
   test("an unmatched apostrophe is left exactly as typed", () => {
-    expect(typeset("Hann sagði 'twas fine")).toBe("Hann sagði 'twas fine");
-    expect(typeset('"Hann sagði \'twas fine"')).toBe("„Hann sagði 'twas fine“");
+    expect(localeDetails("Hann sagði 'twas fine")).toBe("Hann sagði 'twas fine");
+    expect(localeDetails('"Hann sagði \'twas fine"')).toBe("„Hann sagði 'twas fine“");
   });
 
   test("an unmatched double quote is left as typed, not turned into an unclosed „", () => {
-    expect(typeset('Hann sagði "orð')).toBe('Hann sagði "orð');
-    expect(typeset('orð" og fleira')).toBe('orð" og fleira');
-    expect(typeset('Hann sagði "orð" og "fór')).toBe('Hann sagði „orð“ og "fór');
+    expect(localeDetails('Hann sagði "orð')).toBe('Hann sagði "orð');
+    expect(localeDetails('orð" og fleira')).toBe('orð" og fleira');
+    expect(localeDetails('Hann sagði "orð" og "fór')).toBe('Hann sagði „orð“ og "fór');
   });
 
   test("single quotes convert only as a pair, and a pair inside double quotes stays inside", () => {
-    expect(typeset("'nei' sagði hann")).toBe("‚nei‘ sagði hann");
-    expect(typeset("„Hann sagði ‚nei og fór“")).toBe("„Hann sagði ‚nei og fór“");
-    expect(typeset("„Hann 'sagði“ og fór 'nei'")).toBe("„Hann 'sagði“ og fór ‚nei‘");
-    expect(typeset("\"Hann 'sagði\" og fór nei'")).toBe("„Hann 'sagði“ og fór nei'");
+    expect(localeDetails("'nei' sagði hann")).toBe("‚nei‘ sagði hann");
+    expect(localeDetails("„Hann sagði ‚nei og fór“")).toBe("„Hann sagði ‚nei og fór“");
+    expect(localeDetails("„Hann 'sagði“ og fór 'nei'")).toBe(
+      "„Hann 'sagði“ og fór ‚nei‘"
+    );
+    expect(localeDetails("\"Hann 'sagði\" og fór nei'")).toBe(
+      "„Hann 'sagði“ og fór nei'"
+    );
   });
 
   test("mixed quote input is idempotent", () => {
@@ -611,7 +639,7 @@ describe("quote regressions", () => {
       '"a \'b\' c" og "d',
       "\"it's 'quoted' here\"",
     ]) {
-      expect(typeset(typeset(input))).toBe(typeset(input));
+      expect(localeDetails(localeDetails(input))).toBe(localeDetails(input));
     }
   });
 });
@@ -619,21 +647,23 @@ describe("quote regressions", () => {
 describe("URL protection", () => {
   test("a quote inside a URL is never converted", () => {
     const url = "https://example.is/?q='x'";
-    expect(typeset(`Hann sagði 'sjá ${url} nú'.`)).toBe(`Hann sagði ‚sjá ${url} nú‘.`);
-    expect(typeset(`Slóðin ${url} og 'nei'`)).toBe(`Slóðin ${url} og ‚nei‘`);
-    expect(typeset(`"Hann sagði 'sjá ${url} nú'."`)).toBe(
+    expect(localeDetails(`Hann sagði 'sjá ${url} nú'.`)).toBe(
+      `Hann sagði ‚sjá ${url} nú‘.`
+    );
+    expect(localeDetails(`Slóðin ${url} og 'nei'`)).toBe(`Slóðin ${url} og ‚nei‘`);
+    expect(localeDetails(`"Hann sagði 'sjá ${url} nú'."`)).toBe(
       `„Hann sagði ‚sjá ${url} nú‘.“`
     );
   });
 
   test("only unbalanced trailing punctuation is trimmed from a URL", () => {
-    expect(typeset("\"sjá 'https://example.is/x' og\"")).toBe(
+    expect(localeDetails("\"sjá 'https://example.is/x' og\"")).toBe(
       "„sjá ‚https://example.is/x‘ og“"
     );
-    expect(typeset("(sjá https://example.is/a_(b)) og 5 km", { dashes: true })).toBe(
-      `(sjá https://example.is/a_(b)) og 5${NB}km`
-    );
-    expect(typeset("Sjá https://example.is/1990-2000.", { dashes: true })).toBe(
+    expect(
+      localeDetails("(sjá https://example.is/a_(b)) og 5 km", { dashes: true })
+    ).toBe(`(sjá https://example.is/a_(b)) og 5${NB}km`);
+    expect(localeDetails("Sjá https://example.is/1990-2000.", { dashes: true })).toBe(
       "Sjá https://example.is/1990-2000."
     );
   });
@@ -654,35 +684,35 @@ describe("URL protection", () => {
     "mailto:jon@example.is?subject=1990-2000",
     "[::1]:3000/1990-2000",
   ])("leaves %p untouched", input => {
-    expect(typeset(input, { preset: "typographic" })).toBe(input);
+    expect(localeDetails(input, { preset: "typographic" })).toBe(input);
   });
 
   test("leaves a bare domain without a path untouched and quotes around it", () => {
-    expect(typeset('Sjá "geirolafs.com" og 1990-2000.', { dashes: true })).toBe(
+    expect(localeDetails('Sjá "geirolafs.com" og 1990-2000.', { dashes: true })).toBe(
       "Sjá „geirolafs.com“ og 1990–\u20602000."
     );
   });
 
   test("a dotted clock time binds to kl. and is not a domain or a number with a unit", () => {
-    expect(typeset("Fundur kl. 14.30 í dag")).toBe(`Fundur kl.${NB}14.30 í dag`);
-    expect(typeset("Fundur kl. 14.30 í 1. sal")).toBe(
+    expect(localeDetails("Fundur kl. 14.30 í dag")).toBe(`Fundur kl.${NB}14.30 í dag`);
+    expect(localeDetails("Fundur kl. 14.30 í 1. sal")).toBe(
       `Fundur kl.${NB}14.30 í 1.${NB}sal`
     );
-    expect(typeset("Fundur 14.30 í dag")).toBe("Fundur 14.30 í dag");
+    expect(localeDetails("Fundur 14.30 í dag")).toBe("Fundur 14.30 í dag");
   });
 
   test("a time or a ratio is not a host and port", () => {
     // "kl." binds to the time (abbreviation rule); 14:30 is still not a host:port.
-    expect(typeset("Fundur kl. 14:30 í 1. sal")).toBe(
+    expect(localeDetails("Fundur kl. 14:30 í 1. sal")).toBe(
       `Fundur kl.${NB}14:30 í 1.${NB}sal`
     );
-    expect(typeset("Staðan 2:1 í 30. mínútu")).toBe(`Staðan 2:1 í 30.${NB}mínútu`);
+    expect(localeDetails("Staðan 2:1 í 30. mínútu")).toBe(`Staðan 2:1 í 30.${NB}mínútu`);
   });
 
-  test("still typesets text around a bare-domain URL", () => {
-    expect(typeset("Árin 1990-2000 á example.is/1990-2000 nú", { dashes: true })).toBe(
-      "Árin 1990–\u20602000 á example.is/1990-2000 nú"
-    );
+  test("still adds locale details around a bare-domain URL", () => {
+    expect(
+      localeDetails("Árin 1990-2000 á example.is/1990-2000 nú", { dashes: true })
+    ).toBe("Árin 1990–\u20602000 á example.is/1990-2000 nú");
   });
 });
 
@@ -691,14 +721,17 @@ describe("NFC normalisation", () => {
     const nfc = "á fund";
     const nfd = nfc.normalize("NFD");
     expect(nfd).not.toBe(nfc);
-    expect(typeset(nfd, { singleLetter: true })).toBe(`á${NB}fund`);
-    expect(typeset(nfc, { singleLetter: true })).toBe(`á${NB}fund`);
+    expect(localeDetails(nfd, { singleLetter: true })).toBe(`á${NB}fund`);
+    expect(localeDetails(nfc, { singleLetter: true })).toBe(`á${NB}fund`);
   });
 
   test("returns NFC segments and keeps the segment count", () => {
-    const out = typesetSegments(["Sjá ".normalize("NFD"), "á fund".normalize("NFD")], {
-      singleLetter: true,
-    });
+    const out = localeDetailsSegments(
+      ["Sjá ".normalize("NFD"), "á fund".normalize("NFD")],
+      {
+        singleLetter: true,
+      }
+    );
     expect(out).toEqual(["Sjá ", `á${NB}fund`]);
     expect(out.every(segment => segment === segment.normalize("NFC"))).toBe(true);
   });
@@ -713,7 +746,7 @@ describe("performance", () => {
   ])("finishes %s in under 200 ms", (_name, input) => {
     for (const options of [{}, { preset: "typographic" } as const]) {
       const start = performance.now();
-      typeset(input, options);
+      localeDetails(input, options);
       expect(performance.now() - start).toBeLessThan(200);
     }
   });
@@ -728,7 +761,7 @@ describe("safety", () => {
   ].join(" ");
 
   test("never touches URLs or email addresses", () => {
-    const out = typeset(mixed, { preset: "typographic" });
+    const out = localeDetails(mixed, { preset: "typographic" });
     for (const protectedText of [
       "https://example.is/a-b/1990-2000?x='y'",
       "jon@example.is",
@@ -741,7 +774,7 @@ describe("safety", () => {
 
   test("keeps the length and the count of segments", () => {
     const segments = ['Hann sagði "', "1.000 ", "kr.", '" og t. ', "d. fór"];
-    const out = typesetSegments(segments, { preset: "typographic" });
+    const out = localeDetailsSegments(segments, { preset: "typographic" });
     expect(out).toHaveLength(segments.length);
     for (const [index, part] of out.entries()) {
       expect(part.length).toBe(segments[index]?.length ?? -1);
@@ -750,22 +783,22 @@ describe("safety", () => {
 
   test("is idempotent", () => {
     for (const options of [{}, { preset: "typographic" } as const]) {
-      const once = typeset(mixed, options);
-      expect(typeset(once, options)).toBe(once);
+      const once = localeDetails(mixed, options);
+      expect(localeDetails(once, options)).toBe(once);
     }
     const segments = ['Hann "', "sagði ‘nei’", '" 30. ', "september 5 ", "km á fund"];
-    const once = typesetSegments(segments, { preset: "typographic" });
-    expect(typesetSegments(once, { preset: "typographic" })).toEqual(once);
+    const once = localeDetailsSegments(segments, { preset: "typographic" });
+    expect(localeDetailsSegments(once, { preset: "typographic" })).toEqual(once);
   });
 
-  test("typeset equals the first segment of typesetSegments", () => {
-    expect(typeset(mixed)).toBe(typesetSegments([mixed])[0]);
+  test("localeDetails equals the first segment of localeDetailsSegments", () => {
+    expect(localeDetails(mixed)).toBe(localeDetailsSegments([mixed])[0]);
   });
 
   test("handles empty input", () => {
-    expect(typeset("")).toBe("");
-    expect(typesetSegments([])).toEqual([]);
-    expect(typesetSegments(["", ""], { preset: "typographic" })).toEqual(["", ""]);
+    expect(localeDetails("")).toBe("");
+    expect(localeDetailsSegments([])).toEqual([]);
+    expect(localeDetailsSegments(["", ""], { preset: "typographic" })).toEqual(["", ""]);
   });
 });
 
@@ -777,8 +810,8 @@ describe("every rule can be turned off", () => {
     ["prefixes", "Sjá bls. 12"],
     ["titles", "Spurðu dr. Jón"],
   ] as const)("%s: false leaves %p as typed", (option, input) => {
-    expect(typeset(input)).not.toBe(input);
-    expect(typeset(input, { [option]: false })).toBe(input);
+    expect(localeDetails(input)).not.toBe(input);
+    expect(localeDetails(input, { [option]: false })).toBe(input);
   });
 });
 
@@ -791,7 +824,7 @@ describe("more rules", () => {
     ["s. 555 1234", "s.~555~1234"],
     ["10. ág. 2026 og febr. 2027", "10.~ág.~2026 og febr.~2027"],
   ])("%p becomes %p", (input, expected) => {
-    expect(show(typeset(input)).replaceAll("‑", "‑")).toBe(expected);
+    expect(show(localeDetails(input)).replaceAll("‑", "‑")).toBe(expected);
   });
 });
 
@@ -803,43 +836,43 @@ describe("more dashes", () => {
     ["„komdu“ - og", "„komdu“~– og"],
     ["orð – næsta", "orð~– næsta"],
   ])("%p becomes %p", (input, expected) => {
-    expect(show(typeset(input, { dashes: true }))).toBe(expected);
+    expect(show(localeDetails(input, { dashes: true }))).toBe(expected);
   });
 
   test.each(["v1.2-3", "COVID-19", "Hún fór - 5 - 3"])("leaves %p alone", input => {
-    expect(typeset(input, { dashes: true })).toBe(input);
+    expect(localeDetails(input, { dashes: true })).toBe(input);
   });
 });
 
 describe("ranges stay on one line", () => {
   test("a word joiner follows the dash of a range, once", () => {
-    const once = typeset("Árin 1990-2010 og kl. 14.30-16.00", { dashes: true });
+    const once = localeDetails("Árin 1990-2010 og kl. 14.30-16.00", { dashes: true });
     expect(once).toBe("Árin 1990–⁠2010 og kl. 14.30–⁠16.00");
-    expect(typeset(once, { dashes: true })).toBe(once);
+    expect(localeDetails(once, { dashes: true })).toBe(once);
   });
 
   test("a typed en dash in a range is joined too, a spaced one is not", () => {
-    expect(typeset("1990–2010 og orð – orð", { dashes: true })).toBe(
+    expect(localeDetails("1990–2010 og orð – orð", { dashes: true })).toBe(
       "1990–⁠2010 og orð – orð"
     );
   });
 
   test("the joiner lands in the right segment", () => {
-    expect(typesetSegments(["Árin 1990-", "2010"], { dashes: true })).toEqual([
+    expect(localeDetailsSegments(["Árin 1990-", "2010"], { dashes: true })).toEqual([
       "Árin 1990–⁠",
       "2010",
     ]);
   });
 
   test("nothing is inserted without dashes, or inside a URL", () => {
-    expect(typeset("1990–2010", { dashes: false })).toBe("1990–2010");
-    expect(typeset("1990–2010")).toBe("1990–\u20602010");
-    expect(typeset("Sjá example.is/1990–2010", { dashes: true })).toBe(
+    expect(localeDetails("1990–2010", { dashes: false })).toBe("1990–2010");
+    expect(localeDetails("1990–2010")).toBe("1990–\u20602010");
+    expect(localeDetails("Sjá example.is/1990–2010", { dashes: true })).toBe(
       "Sjá example.is/1990–2010"
     );
   });
 
   test("a day stays with its month in any case", () => {
-    expect(typeset("Fundurinn 12. Des. 2026")).toBe("Fundurinn 12. Des. 2026");
+    expect(localeDetails("Fundurinn 12. Des. 2026")).toBe("Fundurinn 12. Des. 2026");
   });
 });

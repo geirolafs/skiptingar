@@ -42,8 +42,8 @@ import { fillPending } from "../src/client/use-hyphenate";
 import type { RemoteItem } from "../src/server";
 
 /** `1990-2000` as the dashes rule sets it: an en dash and a word joiner after it. */
-function typesetDash(): string {
-  return processSegments(["1990-2000"], { typeset: { dashes: true } })[0] ?? "";
+function localeDetailsDash(): string {
+  return processSegments(["1990-2000"], { localeDetails: { dashes: true } })[0] ?? "";
 }
 
 const SHY = "­";
@@ -111,14 +111,14 @@ describe("cleanClipboard", () => {
   });
 
   test("a copied dash range alone is cleaned: the word joiner does not stay on the clipboard", () => {
-    const range = typesetDash();
+    const range = localeDetailsDash();
     expect(range).toContain("\u2060");
     const result = cleanClipboard(range, () => "<p>1990–2000</p>");
     expect(result).toEqual({ text: "1990–2000", html: "<p>1990–2000</p>" });
   });
 
   test("cleanTextNodes removes the word joiner of a dash range", () => {
-    const node = { nodeValue: typesetDash() };
+    const node = { nodeValue: localeDetailsDash() };
     cleanTextNodes([node]);
     expect(node.nodeValue).toBe("1990–2000");
   });
@@ -188,7 +188,7 @@ describe("loadSkiptingar", () => {
     expect(second).toBe(first);
     const core = await first;
     expect(typeof core.hyphenate).toBe("function");
-    expect(typeof core.typesetSegments).toBe("function");
+    expect(typeof core.localeDetailsSegments).toBe("function");
   });
 
   test("exports the hook", () => {
@@ -335,34 +335,34 @@ describe("hook options", () => {
 
   test("optionsKey ignores the key order of nested options too", () => {
     expect(
-      optionsKey({ typeset: { quotes: true, singleLetter: true }, mode: "heading" })
+      optionsKey({ localeDetails: { quotes: true, singleLetter: true }, mode: "heading" })
     ).toBe(
-      optionsKey({ mode: "heading", typeset: { singleLetter: true, quotes: true } })
+      optionsKey({ mode: "heading", localeDetails: { singleLetter: true, quotes: true } })
     );
-    expect(optionsKey({ typeset: { quotes: undefined, dashes: true } })).toBe(
-      optionsKey({ typeset: { dashes: true } })
+    expect(optionsKey({ localeDetails: { quotes: undefined, dashes: true } })).toBe(
+      optionsKey({ localeDetails: { dashes: true } })
     );
-    expect(optionsKey({ typeset: { dashes: true } })).not.toBe(
-      optionsKey({ typeset: { dashes: false } })
+    expect(optionsKey({ localeDetails: { dashes: true } })).not.toBe(
+      optionsKey({ localeDetails: { dashes: false } })
     );
   });
 
   test("applyOptionsKey reads NFD text like NFC text", async () => {
     const core = await loadSkiptingar();
-    const key = optionsKey({ typeset: { singleLetter: true } });
+    const key = optionsKey({ localeDetails: { singleLetter: true } });
     const nfd = "á fund".normalize("NFD");
     expect(applyOptionsKey(core, nfd, key)).toBe(`á${NBSP}fund`);
     expect(applyOptionsKey(core, "á fund", key)).toBe(`á${NBSP}fund`);
   });
 
-  test("applyOptionsKey typesets and hyphenates by default", async () => {
+  test("applyOptionsKey adds locale details and hyphenates by default", async () => {
     const core = await loadSkiptingar();
     const text = 'Hann sagði "orð" um Hraðbrautarframkvæmdir';
     for (const key of [
       optionsKey(undefined),
       optionsKey({}),
-      optionsKey({ typeset: true }),
-      optionsKey({ typeset: {} }),
+      optionsKey({ localeDetails: true }),
+      optionsKey({ localeDetails: {} }),
     ]) {
       const out = applyOptionsKey(core, text, key);
       expect(out).toContain("„orð“");
@@ -370,40 +370,40 @@ describe("hook options", () => {
     }
   });
 
-  test("options that give the same output share one key; typeset: false stays apart", () => {
+  test("options that give the same output share one key; localeDetails: false stays apart", () => {
     const keys = [
       optionsKey(undefined),
       optionsKey({}),
-      optionsKey({ typeset: undefined }),
-      optionsKey({ typeset: true }),
-      optionsKey({ typeset: {} }),
-      optionsKey({ typeset: { quotes: undefined } }),
+      optionsKey({ localeDetails: undefined }),
+      optionsKey({ localeDetails: true }),
+      optionsKey({ localeDetails: {} }),
+      optionsKey({ localeDetails: { quotes: undefined } }),
     ];
     expect(new Set(keys).size).toBe(1);
-    expect(optionsKey({ typeset: false })).not.toBe(keys[0]);
-    expect(optionsKey({ typeset: { dashes: true } })).not.toBe(keys[0]);
+    expect(optionsKey({ localeDetails: false })).not.toBe(keys[0]);
+    expect(optionsKey({ localeDetails: { dashes: true } })).not.toBe(keys[0]);
     expect(optionsKey({ rules: "ritreglur" })).not.toBe(keys[0]);
   });
 
-  test("applyOptionsKey only hyphenates with typeset: false", async () => {
+  test("applyOptionsKey only hyphenates with localeDetails: false", async () => {
     const core = await loadSkiptingar();
     const out = applyOptionsKey(
       core,
       'Hann sagði "orð" um Hraðbrautarframkvæmdir',
-      optionsKey({ typeset: false })
+      optionsKey({ localeDetails: false })
     );
     expect(out).toContain('"orð"');
     expect(out).not.toContain("„");
     expect(out).toContain(SHY);
   });
 
-  test("applyOptionsKey honours typeset=false and hyphenate options", async () => {
+  test("applyOptionsKey honours localeDetails=false and hyphenate options", async () => {
     const core = await loadSkiptingar();
     const word = "Vaðlaheiðarvegavinnuverkfærageymsluskúr";
     const out = applyOptionsKey(
       core,
       `"${word}"`,
-      optionsKey({ typeset: false, mode: "heading" })
+      optionsKey({ localeDetails: false, mode: "heading" })
     );
     expect(out).toBe(`"${hyphenate(word, { mode: "heading" })}"`);
   });

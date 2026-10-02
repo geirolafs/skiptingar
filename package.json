@@ -1,6 +1,6 @@
 {
   "name": "skiptingar",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "description": "Icelandic text, set well: hyphenation from the 2020 letter patterns, better breaks and Icelandic locale details, all made on the server as soft hyphens and no-break spaces.",
   "license": "MIT AND CC-BY-4.0 AND CC0-1.0",
   "author": "Geir Ólafsson",

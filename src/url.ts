@@ -1,6 +1,6 @@
 /**
  * Finds the parts of a text that are web addresses: URLs, bare domains and
- * email addresses. Both `typeset` and `hyphenate` use this, so they always
+ * email addresses. Both `localeDetails` and `hyphenate` use this, so they always
  * agree on what an address is and never change one.
  */
 
@@ -65,7 +65,7 @@ const BALANCING_OPENER: Readonly<Record<string, string>> = {
   "’": "‘",
   "»": "«",
   "“": "„",
-  // Typographic quotes typeset() writes: a closer with no opener in the URL is
+  // Typographic quotes localeDetails() writes: a closer with no opener in the URL is
   // not part of it, and neither is a trailing opener with no closer.
   "‘": "‚",
   "‚": "‘",

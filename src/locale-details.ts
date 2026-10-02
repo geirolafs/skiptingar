@@ -1,13 +1,13 @@
 /**
  * Icelandic typographic fixes that swap one character for another:
  *   space -> no-break space (U+00A0), quote -> quote, hyphen -> en dash.
- * That is what lets `typesetSegments` join the segments, apply the rules
+ * That is what lets `localeDetailsSegments` join the segments, apply the rules
  * across their borders and cut the result back at the original offsets.
  * The one addition: with `dashes` (on by default), a word joiner (U+2060) goes after the en
  * dash of a range, so `1990–2010` never breaks after the dash. It is
  * inserted after the cut, at its offset, the way soft hyphens are.
  *
- * Typeset normalises each segment to NFC first, so a decomposed "á"
+ * `localeDetails` normalises each segment to NFC first, so a decomposed "á"
  * (a + U+0301) is read as one letter. The segments it returns keep the NFC
  * length.
  */
@@ -19,7 +19,7 @@ import {
 } from "./characters";
 import { findProtectedMask, isProtected, type Mask } from "./url";
 
-export type TypesetOptions = {
+export type LocaleDetailsOptions = {
   /**
    * "typographic" also turns on the rules that are off by default
    * (`singleLetter` and `lastWords`). Explicit options still win.
@@ -450,9 +450,9 @@ function applyDashes(text: string, mask: Mask): string {
   return replaceMatches(out, SPACE_BEFORE_DASH, mask, () => NO_BREAK_SPACE);
 }
 
-type ResolvedOptions = Required<Omit<TypesetOptions, "preset">>;
+type ResolvedOptions = Required<Omit<LocaleDetailsOptions, "preset">>;
 
-function resolveOptions(options: TypesetOptions): ResolvedOptions {
+function resolveOptions(options: LocaleDetailsOptions): ResolvedOptions {
   const all = options.preset === "typographic";
   return {
     quotes: options.quotes ?? true,
@@ -469,7 +469,7 @@ function resolveOptions(options: TypesetOptions): ResolvedOptions {
 }
 
 /**
- * The locale rules `typeset` has, by option name: one for each option
+ * The locale rules `localeDetails()` has, by option name: one for each option
  * `resolveOptions` fills in (quotes, units, dates and the rest), not counting
  * `preset`.
  */
@@ -477,10 +477,10 @@ export const LOCALE_RULES = Object.keys(
   resolveOptions({})
 ) as readonly (keyof ResolvedOptions)[];
 
-/** How many locale rules `typeset` has. */
+/** How many locale rules `localeDetails()` has. */
 export const LOCALE_RULE_COUNT = LOCALE_RULES.length;
 
-function typesetText(text: string, options: ResolvedOptions): string {
+function localeDetailsText(text: string, options: ResolvedOptions): string {
   const mask = findProtectedMask(text);
   let out = text;
 
@@ -520,21 +520,23 @@ function typesetText(text: string, options: ResolvedOptions): string {
 }
 
 /**
- * Typesets adjacent text segments (for example the text nodes of a JSX tree
+ * Adds the locale details to adjacent text segments (for example the text nodes of a JSX tree
  * split by inline elements). Rules see the joined text, so they work across
  * segment borders. Each segment is normalised to NFC first. Returns the same
  * number of segments, each with its NFC length.
  */
-export function typesetSegments(
+export function localeDetailsSegments(
   segments: readonly string[],
-  options: TypesetOptions = {}
+  options: LocaleDetailsOptions = {}
 ): string[] {
   const normalised = segments.map(segment => segment.normalize("NFC"));
   const joined = normalised.join("");
   const resolved = resolveOptions(options);
-  const result = typesetText(joined, resolved);
+  const result = localeDetailsText(joined, resolved);
   if (result.length !== joined.length) {
-    throw new Error("typeset changed the text length, which segments cannot map back");
+    throw new Error(
+      "localeDetails changed the text length, which segments cannot map back"
+    );
   }
 
   let offset = 0;
@@ -564,7 +566,7 @@ function rangeJoins(text: string): number[] {
   return offsets;
 }
 
-/** Typesets one string. Same as `typesetSegments([text])[0]`. */
-export function typeset(text: string, options: TypesetOptions = {}): string {
-  return typesetSegments([text], options)[0] ?? "";
+/** Adds the locale details to one string. Same as `localeDetailsSegments([text])[0]`. */
+export function localeDetails(text: string, options: LocaleDetailsOptions = {}): string {
+  return localeDetailsSegments([text], options)[0] ?? "";
 }
