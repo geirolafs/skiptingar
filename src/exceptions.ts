@@ -14,7 +14,21 @@ let bundled: Map<string, ExceptionEntry> | undefined;
 const dictionaries = new Map<string, Map<string, ExceptionEntry>>();
 const DICTIONARY_CACHE = 8;
 
+/**
+ * The parsed dictionary of each array already seen, by identity. A lookup
+ * runs once for each word, so this is what keeps it cheap: the text of the
+ * dictionary is joined and compared once for an array, not once for a word.
+ * A new array with the same lines (`{ dictionary: [...] }` written inline in a
+ * component) misses here once, then finds its parse in `dictionaries`. An array
+ * is treated as it was when first seen: do not change it afterwards.
+ */
+const parsedByArray = new WeakMap<readonly string[], Map<string, ExceptionEntry>>();
+
 function parsedDictionary(lines: readonly string[]): Map<string, ExceptionEntry> {
+  const seen = parsedByArray.get(lines);
+  if (seen) {
+    return seen;
+  }
   const text = lines.join("\n");
   let parsed = dictionaries.get(text);
   if (!parsed) {
@@ -24,6 +38,7 @@ function parsedDictionary(lines: readonly string[]): Map<string, ExceptionEntry>
     }
     dictionaries.set(text, parsed);
   }
+  parsedByArray.set(lines, parsed);
   return parsed;
 }
 

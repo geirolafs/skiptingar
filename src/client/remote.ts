@@ -3,8 +3,11 @@
  * `configureSkiptingar({ endpoint })`, the hooks send their texts to that
  * endpoint (`handleSkiptingarRequest` on the server) and the 47 kB pattern
  * chunk is never downloaded. Requests made in the same tick go out as one,
- * answers are cached, and if the endpoint fails the hooks fall back to
- * loading the patterns, for the rest of the page's life.
+ * answers are cached, and if the endpoint fails (the network, or a 5xx) the
+ * hooks fall back to loading the patterns, for the rest of the page's life.
+ * A request the endpoint refuses for its size or content (400, 413) is not a
+ * failure of the endpoint: that batch comes back as given, unhyphenated, and
+ * the next one goes to the endpoint as usual.
  */
 import type { RemoteItem, RemoteResult } from "../server";
 
@@ -19,6 +22,18 @@ let scheduled = false;
 
 /** How many answers stay cached; the oldest go first. */
 const CACHE_LIMIT = 2000;
+
+/**
+ * What one request may carry: the defaults of `handleSkiptingarRequest`. A
+ * bigger queue goes out as several requests.
+ */
+const MAX_BATCH_ITEMS = 200;
+const MAX_BATCH_CHARACTERS = 50_000;
+
+/** The statuses for a request refused for what is in it: malformed or too big. */
+const REFUSED = new Set([400, 413]);
+
+type Entry = [key: string, item: RemoteItem];
 
 /**
  * Sends the hooks' work to `endpoint`, a POST route that runs
@@ -81,39 +96,91 @@ function remember(key: string, result: RemoteResult): void {
   }
 }
 
+/** What the endpoint counts: the text or word, and the lines of a `dictionary`. */
+function sizeOf(item: RemoteItem): number {
+  const base = (item.op === "process" ? item.text : item.word).length;
+  return (item.options?.dictionary ?? []).reduce(
+    (total, line) => total + line.length,
+    base
+  );
+}
+
+/** The queue in requests that stay under the endpoint's default limits, in order. */
+export function splitBatches(entries: readonly Entry[]): Entry[][] {
+  const batches: Entry[][] = [];
+  let current: Entry[] = [];
+  let characters = 0;
+  for (const entry of entries) {
+    const size = sizeOf(entry[1]);
+    if (
+      current.length > 0 &&
+      (current.length >= MAX_BATCH_ITEMS || characters + size > MAX_BATCH_CHARACTERS)
+    ) {
+      batches.push(current);
+      current = [];
+      characters = 0;
+    }
+    current.push(entry);
+    characters += size;
+  }
+  if (current.length > 0) {
+    batches.push(current);
+  }
+  return batches;
+}
+
+/** An item the endpoint refused: the text as given, or no breaks. */
+function unchanged(item: RemoteItem): RemoteResult {
+  return item.op === "process" ? item.text : { breaks: [], joints: [] };
+}
+
 function flush(): void {
   scheduled = false;
   const url = endpoint;
   if (url === undefined || queued.size === 0) {
     return;
   }
-  const batch = [...queued];
+  const batches = splitBatches([...queued]);
   queued.clear();
-  for (const [key] of batch) {
-    inFlight.add(key);
+  for (const batch of batches) {
+    for (const [key] of batch) {
+      inFlight.add(key);
+    }
+    send(url, batch);
   }
-  fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ items: batch.map(([, item]) => item) }),
-  })
-    .then(response => (response.ok ? response.json() : Promise.reject(response.status)))
-    .then((body: { results?: RemoteResult[] }) => {
-      const answers = body.results ?? [];
-      if (answers.length !== batch.length) {
-        throw new Error("the endpoint answered a different number of items");
-      }
-      for (const [index, [key]] of batch.entries()) {
-        remember(key, answers[index] as RemoteResult);
-      }
-    })
-    .catch(() => {
-      failed = true;
-    })
-    .finally(() => {
-      for (const [key] of batch) {
-        inFlight.delete(key);
-      }
-      notify();
+}
+
+/** One request. Only the network and the endpoint's own errors set `failed`. */
+async function send(url: string, batch: Entry[]): Promise<void> {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ items: batch.map(([, item]) => item) }),
     });
+    if (REFUSED.has(response.status)) {
+      for (const [key, item] of batch) {
+        remember(key, unchanged(item));
+      }
+      return;
+    }
+    if (!response.ok) {
+      throw new Error(`the endpoint answered ${response.status}`);
+    }
+    const body = (await response.json()) as { results?: RemoteResult[] };
+    const answers = body.results ?? [];
+    if (answers.length !== batch.length) {
+      throw new Error("the endpoint answered a different number of items");
+    }
+    for (const [index, [key]] of batch.entries()) {
+      remember(key, answers[index] as RemoteResult);
+    }
+  } catch {
+    failed = true;
+  } finally {
+    for (const [key] of batch) {
+      inFlight.delete(key);
+    }
+    notify();
+  }
 }

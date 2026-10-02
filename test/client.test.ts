@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { createElement } from "react";
@@ -22,6 +22,15 @@ import {
 } from "../src/client/clean";
 import { createLoader, loadedSkiptingar } from "../src/client/load";
 import { applyOptionsKey, optionsKey } from "../src/client/options";
+import {
+  configureSkiptingar,
+  remoteResult,
+  requestRemote,
+  splitBatches,
+  usesEndpoint,
+} from "../src/client/remote";
+import { fillPending } from "../src/client/use-hyphenate";
+import type { RemoteItem } from "../src/server";
 
 /** `1990-2000` as the dashes rule sets it: an en dash and a word joiner after it. */
 function typesetDash(): string {
@@ -381,6 +390,219 @@ describe("hook options", () => {
       optionsKey({ typeset: false, mode: "heading" })
     );
     expect(out).toBe(`"${hyphenate(word, { mode: "heading" })}"`);
+  });
+});
+
+describe("the endpoint client", () => {
+  const realFetch = globalThis.fetch;
+  type Call = { items: RemoteItem[] };
+  let calls: Call[] = [];
+
+  /** Answers every request with `respond(call)`: a status, or a thrown error. */
+  function mockFetch(respond: (call: Call) => number | Error) {
+    calls = [];
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      const call = JSON.parse(String(init?.body)) as Call;
+      calls.push(call);
+      const outcome = respond(call);
+      if (outcome instanceof Error) {
+        throw outcome;
+      }
+      const ok = outcome === 200;
+      return new Response(
+        JSON.stringify(
+          ok
+            ? {
+                results: call.items.map(item =>
+                  item.op === "process" ? `<${item.text}>` : { breaks: [1], joints: [] }
+                ),
+              }
+            : { error: "no" }
+        ),
+        { status: outcome }
+      );
+    }) as unknown as typeof fetch;
+  }
+
+  const process = (text: string): RemoteItem => ({ op: "process", text });
+  const ask = (text: string) => requestRemote(`k:${text}`, process(text));
+  const answer = (text: string) => remoteResult(`k:${text}`);
+  const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    configureSkiptingar({ endpoint: undefined });
+  });
+
+  test("an answer is cached under its key", async () => {
+    mockFetch(() => 200);
+    configureSkiptingar({ endpoint: "/api" });
+    ask("ok-one");
+    await settle();
+    expect(answer("ok-one")).toBe("<ok-one>");
+    expect(usesEndpoint()).toBe(true);
+  });
+
+  test.each([400, 413])(
+    "a %i leaves the endpoint in use, and the next batch still goes to it",
+    async status => {
+      mockFetch(call =>
+        call.items.some(item => item.op === "process" && item.text === `bad-${status}`)
+          ? status
+          : 200
+      );
+      configureSkiptingar({ endpoint: "/api" });
+      ask(`bad-${status}`);
+      await settle();
+      expect(usesEndpoint()).toBe(true);
+      // The refused text comes back as given, and is not asked for again.
+      expect(answer(`bad-${status}`)).toBe(`bad-${status}`);
+      ask(`bad-${status}`);
+      await settle();
+      expect(calls).toHaveLength(1);
+
+      ask(`good-after-${status}`);
+      await settle();
+      expect(calls).toHaveLength(2);
+      expect(answer(`good-after-${status}`)).toBe(`<good-after-${status}>`);
+      expect(usesEndpoint()).toBe(true);
+    }
+  );
+
+  test("a refused analyze job comes back with no breaks", async () => {
+    mockFetch(() => 400);
+    configureSkiptingar({ endpoint: "/api" });
+    requestRemote("a:word", { op: "analyze", word: "word" });
+    await settle();
+    expect(remoteResult("a:word")).toEqual({ breaks: [], joints: [] });
+    expect(usesEndpoint()).toBe(true);
+  });
+
+  test.each([
+    ["a server error", 500],
+    ["a bad gateway", 502],
+    ["a missing route", 404],
+    ["a network error", new TypeError("Failed to fetch")],
+  ])("%s sets failed, so the hooks load the patterns", async (_name, outcome) => {
+    mockFetch(() => outcome);
+    configureSkiptingar({ endpoint: "/api" });
+    expect(usesEndpoint()).toBe(true);
+    ask(`fail-${_name}`);
+    await settle();
+    expect(usesEndpoint()).toBe(false);
+    expect(answer(`fail-${_name}`)).toBeUndefined();
+  });
+
+  test("configureSkiptingar clears failed", async () => {
+    mockFetch(() => 500);
+    configureSkiptingar({ endpoint: "/api" });
+    ask("will-fail");
+    await settle();
+    expect(usesEndpoint()).toBe(false);
+    configureSkiptingar({ endpoint: "/api" });
+    expect(usesEndpoint()).toBe(true);
+  });
+
+  test("a queue over the limits goes out as several requests, each under them", async () => {
+    mockFetch(() => 200);
+    configureSkiptingar({ endpoint: "/api" });
+    for (let index = 0; index < 450; index += 1) {
+      ask(`many-${index}`);
+    }
+    await settle();
+    expect(calls.map(call => call.items.length)).toEqual([200, 200, 50]);
+    expect(answer("many-0")).toBe("<many-0>");
+    expect(answer("many-449")).toBe("<many-449>");
+    expect(usesEndpoint()).toBe(true);
+  });
+
+  test("a refused batch does not stop the others in the same queue", async () => {
+    // Two requests: the first (200 texts) is refused, the second is answered.
+    mockFetch(call => (call.items.length === 200 ? 400 : 200));
+    configureSkiptingar({ endpoint: "/api" });
+    for (let index = 0; index < 210; index += 1) {
+      ask(`mixed-${index}`);
+    }
+    await settle();
+    expect(answer("mixed-0")).toBe("mixed-0");
+    expect(answer("mixed-209")).toBe("<mixed-209>");
+    expect(usesEndpoint()).toBe(true);
+  });
+
+  describe("splitBatches", () => {
+    const entry = (text: string): [string, RemoteItem] => [text, process(text)];
+
+    test("keeps order and splits at 200 items", () => {
+      const entries = Array.from({ length: 401 }, (_, index) => entry(`t${index}`));
+      const batches = splitBatches(entries);
+      expect(batches.map(batch => batch.length)).toEqual([200, 200, 1]);
+      expect(batches.flat()).toEqual(entries);
+    });
+
+    test("splits at 50 000 characters, and the last batch is the remainder", () => {
+      const entries = [
+        entry("a".repeat(30_000)),
+        entry("b".repeat(20_000)),
+        entry("c".repeat(1)),
+        entry("d".repeat(49_999)),
+      ];
+      const batches = splitBatches(entries);
+      expect(batches.map(batch => batch.length)).toEqual([2, 2]);
+      for (const batch of batches) {
+        const total = batch.reduce(
+          (sum, [, item]) => sum + (item.op === "process" ? item.text.length : 0),
+          0
+        );
+        expect(total).toBeLessThanOrEqual(50_000);
+      }
+    });
+
+    test("a text over the limit alone still goes out, in its own batch", () => {
+      const huge = entry("x".repeat(60_000));
+      const batches = splitBatches([entry("a"), huge, entry("b")]);
+      expect(batches.map(batch => batch.length)).toEqual([1, 1, 1]);
+      expect(batches[1]?.[0]).toBe(huge);
+    });
+
+    test("counts the word of an analyze job, and an empty queue gives no batch", () => {
+      expect(splitBatches([])).toEqual([]);
+      const batches = splitBatches([
+        ["a", { op: "analyze", word: "w".repeat(40_000) }],
+        ["b", process("t".repeat(20_000))],
+      ]);
+      expect(batches.map(batch => batch.length)).toEqual([1, 1]);
+    });
+  });
+});
+
+describe("fillPending", () => {
+  const last = { sources: ["a", "b"], texts: ["A·", "B·"] };
+
+  test("keeps the answers it has", () => {
+    expect(fillPending(["a", "b"], ["x", "y"], last)).toEqual(["x", "y"]);
+  });
+
+  test("a pending text keeps its last output, so a toggle does not flash the raw text", () => {
+    expect(fillPending(["a", "b"], [undefined, undefined], last)).toEqual(["A·", "B·"]);
+    expect(fillPending(["a", "b"], ["x", undefined], last)).toEqual(["x", "B·"]);
+  });
+
+  test("a changed text never gets the output of another", () => {
+    expect(fillPending(["a", "c"], [undefined, undefined], last)).toEqual(["A·", "c"]);
+    // Moved to another position: no match, the raw text.
+    expect(fillPending(["b", "a"], [undefined, undefined], last)).toEqual(["b", "a"]);
+  });
+
+  test("a different number of texts gives one text for each, and never reads past the old ones", () => {
+    expect(fillPending(["a", "b", "c"], [undefined, undefined, undefined], last)).toEqual(
+      ["A·", "B·", "c"]
+    );
+    expect(fillPending(["a"], [undefined], last)).toEqual(["A·"]);
+    expect(fillPending([], [], last)).toEqual([]);
+  });
+
+  test("with nothing ready before, the raw texts", () => {
+    expect(fillPending(["a", "b"], [undefined, undefined], null)).toEqual(["a", "b"]);
   });
 });
 

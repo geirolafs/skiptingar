@@ -72,7 +72,9 @@ export function parseExceptions(text: string): Map<string, ExceptionEntry> {
     }
     const [word, entry] = parseLine(line, index + 1);
     if (entries.has(word)) {
-      throw new Error(`exceptions line ${index + 1}: duplicate word "${word}"`);
+      throw new Error(
+        `exceptions line ${index + 1}: duplicate word ${JSON.stringify(word)}`
+      );
     }
     entries.set(word, entry);
   }

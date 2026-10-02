@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import type { HyphenateOptions } from "../hyphenate";
 import type { UseHyphenateOptions } from "./options";
 import { applyOptionsKey, optionsKey } from "./options";
@@ -36,7 +36,10 @@ function useWorker() {
  * browser, each with its own options: at the endpoint set with
  * `configureSkiptingar`, or with the core, which loads lazily. Until the answers are in, on the server and if
  * every way fails, each text is returned as given and `ready` is false.
- * Options are compared by value.
+ * Options are compared by value. While a changed option waits for its answer,
+ * a text keeps the last processed output of the same text at the same
+ * position (`ready` stays false), so a setting toggle does not flash the raw
+ * text. A changed text never gets the output of another.
  */
 export function useHyphenateAll(
   items: readonly { text: string; options?: UseHyphenateOptions }[]
@@ -57,7 +60,10 @@ export function useHyphenateAll(
     }
   }, [serial, remote]);
 
-  return useMemo(() => {
+  // The last output that was ready, with the texts it was made from.
+  const lastReady = useRef<ReadyOutput | null>(null);
+
+  const result = useMemo(() => {
     const jobs = parseJobs(serial);
     const texts = jobs.map(([text, key]) => {
       if (remote) {
@@ -68,10 +74,48 @@ export function useHyphenateAll(
       return core ? applyOptionsKey(core, text, key) : undefined;
     });
     return {
-      texts: texts.map((text, index) => text ?? jobs[index]?.[0] ?? ""),
+      texts: fillPending(
+        jobs.map(([text]) => text),
+        texts,
+        lastReady.current
+      ),
       ready: texts.every(text => text !== undefined),
     };
   }, [serial, remote, version, core]);
+
+  useEffect(() => {
+    if (result.ready) {
+      lastReady.current = {
+        sources: parseJobs(serial).map(([text]) => text),
+        texts: result.texts,
+      };
+    }
+  }, [result, serial]);
+
+  return result;
+}
+
+/** An output that was ready, with the texts it was made from. */
+type ReadyOutput = { sources: readonly string[]; texts: readonly string[] };
+
+/**
+ * `outputs` with each missing one filled in: by the last ready output of the
+ * same source text at the same position (it was made with other options), or
+ * else by the source text itself. A source that changed never gets the output
+ * of another, and the result always has one text for each source.
+ */
+export function fillPending(
+  sources: readonly string[],
+  outputs: readonly (string | undefined)[],
+  last: ReadyOutput | null
+): string[] {
+  return sources.map((source, index) => {
+    const output = outputs[index];
+    if (output !== undefined) {
+      return output;
+    }
+    return (last?.sources[index] === source ? last.texts[index] : undefined) ?? source;
+  });
 }
 
 function parseJobs(serial: string): [text: string, key: string][] {

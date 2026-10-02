@@ -15,8 +15,27 @@ import {
   usesEndpoint,
 } from "../src/client/remote";
 
+const JSON_TYPE = { "content-type": "application/json" };
+
 const post = (body: unknown) =>
-  new Request("http://x/api", { method: "POST", body: JSON.stringify(body) });
+  new Request("http://x/api", {
+    method: "POST",
+    headers: JSON_TYPE,
+    body: JSON.stringify(body),
+  });
+
+/** A different four-letter word for each index: aaaa, baaa, caaa ... */
+const fourLetters = (index: number) =>
+  [0, 1, 2, 3]
+    .map(place => String.fromCharCode(97 + (Math.floor(index / 26 ** place) % 26)))
+    .join("");
+
+/** `count` different dictionary lines of `length` characters, each with one break. */
+const dictionaryLines = (count: number, length = 64) =>
+  Array.from({ length: count }, (_, index) => {
+    const rest = length - 5;
+    return `${fourLetters(index)}${"x".repeat(rest >> 1)}-${"y".repeat(rest - (rest >> 1))}`;
+  });
 
 describe("handleSkiptingarRequest", () => {
   test("answers process and analyze jobs in order", async () => {
@@ -79,7 +98,11 @@ describe("handleSkiptingarRequest", () => {
   test("refuses other methods, bad bodies and oversized requests", async () => {
     const get = await handleSkiptingarRequest(new Request("http://x/api"));
     expect(get.status).toBe(405);
-    const notJson = new Request("http://x/api", { method: "POST", body: "{" });
+    const notJson = new Request("http://x/api", {
+      method: "POST",
+      headers: JSON_TYPE,
+      body: "{",
+    });
     expect((await handleSkiptingarRequest(notJson)).status).toBe(400);
     expect((await handleSkiptingarRequest(post({ items: [{ op: "x" }] }))).status).toBe(
       400
@@ -93,6 +116,285 @@ describe("handleSkiptingarRequest", () => {
   });
 });
 
+describe("handleSkiptingarRequest abuse limits", () => {
+  const job = (text: string, options?: unknown) => ({ op: "process", text, options });
+  const run = (
+    items: unknown[],
+    limits?: Parameters<typeof handleSkiptingarRequest>[1]
+  ) => handleSkiptingarRequest(post({ items }), limits);
+
+  test("the request the client sends still gets the same answer", async () => {
+    // What `outputOptions` and `useAnalyzeWord` put on the wire.
+    const text = 'Hann sagði "orð" um Hraðbrautarframkvæmdir, 1.000 kr.';
+    const page = {
+      rules: "typographic",
+      typeset: { preset: "typographic", dashes: true },
+    };
+    const response = await run([
+      job(text, page),
+      job(text, { rules: "ritreglur", typeset: false }),
+      job(text),
+      { op: "analyze", word: "vítamín", options: { rules: "ritreglur" } },
+      { op: "analyze", word: "vítamín" },
+    ]);
+    expect(response.status).toBe(200);
+    const { results } = (await response.json()) as { results: unknown[] };
+    expect(results).toEqual(
+      runRemoteItems([
+        { op: "process", text, options: page as never },
+        { op: "process", text, options: { rules: "ritreglur", typeset: false } },
+        { op: "process", text },
+        { op: "analyze", word: "vítamín", options: { rules: "ritreglur" } },
+        { op: "analyze", word: "vítamín" },
+      ])
+    );
+  });
+
+  test("accepts every option the package has", async () => {
+    const response = await run([
+      job("Hraðbrautarframkvæmdir", {
+        mode: "heading",
+        joints: "prefer",
+        rules: "ritreglur",
+        minWordLength: 4,
+        leftMin: 1,
+        rightMin: 2,
+        hyphenChar: "-",
+        exceptions: true,
+        dictionary: ["forn=aldar=frægð"],
+        skipAcronyms: true,
+        typeset: {
+          preset: "typographic",
+          quotes: true,
+          singleLetter: true,
+          lastWords: true,
+          dashes: true,
+          units: true,
+          dates: true,
+          ordinals: true,
+          prefixes: true,
+          titles: true,
+          numbers: true,
+        },
+      }),
+    ]);
+    expect(response.status).toBe(200);
+  });
+
+  test("a huge hyphenChar is a 400, not a 300 MB answer", async () => {
+    const response = await run([
+      job("Hraðbrautarframkvæmdir", { hyphenChar: "x".repeat(100_000) }),
+    ]);
+    expect(response.status).toBe(400);
+    expect((await response.text()).length).toBeLessThan(200);
+    const refused = [
+      "",
+      "xyz",
+      "xy",
+      "\ud800",
+      "\udc00",
+      "\ud800\ud800",
+      "\ud83d",
+      "\n",
+      "\u0000",
+      "\u2028",
+      "\u2029",
+      1,
+      null,
+      ["x"],
+    ];
+    for (const hyphenChar of refused) {
+      expect((await run([job("orð", { hyphenChar })])).status).toBe(400);
+    }
+    // One character: a hyphen, a soft hyphen, a Unicode hyphen, an emoji, a word joiner.
+    for (const hyphenChar of ["-", "\u00AD", "\u2010", "😀", "\u2060"]) {
+      expect((await run([job("orð", { hyphenChar })])).status).toBe(200);
+    }
+  });
+
+  test("a lone surrogate cannot make the answer 12 times larger", async () => {
+    // JSON.stringify writes each lone surrogate as the 6 bytes \ud800.
+    const text = "sveitarstjórnarkosningar ".repeat(1900);
+    const response = await run([job(text, { hyphenChar: "\ud800\ud800" })]);
+    expect(response.status).toBe(400);
+    expect((await response.text()).length).toBeLessThan(200);
+  });
+
+  test("an unknown option key is a 400, in every place options go", async () => {
+    const bad = [
+      job("orð", { nope: true }),
+      job("orð", { typeset: { nope: true } }),
+      job("orð", JSON.parse('{"__proto__": {"rules": "ritreglur"}}')),
+      job("orð", { constructor: 1 }),
+      job("orð", { toString: 1 }),
+      { op: "analyze", word: "orð", options: { typeset: false } },
+      { op: "analyze", word: "orð", options: { nope: 1 } },
+    ];
+    for (const item of bad) {
+      expect((await run([item])).status).toBe(400);
+    }
+  });
+
+  test("option values must be the right type and in range", async () => {
+    const bad = [
+      { mode: "other" },
+      { joints: "x" },
+      { rules: 1 },
+      { minWordLength: 65 },
+      { leftMin: -1 },
+      { rightMin: 1.5 },
+      { minWordLength: "4" },
+      { minWordLength: 1e9 },
+      { exceptions: "yes" },
+      { skipAcronyms: 1 },
+      { dictionary: "forn=aldar" },
+      { dictionary: Array.from({ length: 201 }, () => "ab") },
+      { dictionary: ["a".repeat(65)] },
+      { dictionary: [1] },
+      { typeset: "yes" },
+      { typeset: [] },
+      { typeset: null },
+      { typeset: { preset: "all" } },
+      { typeset: { quotes: "yes" } },
+    ];
+    for (const options of bad) {
+      expect((await run([job("orð", options)])).status).toBe(400);
+    }
+    expect((await run([job("orð", null)])).status).toBe(400);
+    expect((await run([job("orð", [])])).status).toBe(400);
+  });
+
+  test("a dictionary is parsed before any text is, and is used", async () => {
+    // A line that does not parse, and a duplicate: a 400 even when no word
+    // of the text is long enough to look in the dictionary.
+    for (const dictionary of [["Forn=aldar"], ["forn=aldar", "forn-aldar"], ["a b"]]) {
+      expect((await run([job("orð", { dictionary })])).status).toBe(400);
+    }
+    expect((await run([job("orð", { dictionary: ["forn=aldar"] })])).status).toBe(200);
+    // The biggest dictionary there is, and a word that it lists: the word
+    // is broken where the line says.
+    const lines = dictionaryLines(200);
+    expect(lines).toHaveLength(200);
+    expect(new Set(lines).size).toBe(200);
+    expect(lines.every(line => line.length === 64)).toBe(true);
+    const listed = (lines[7] ?? "").replace("-", "");
+    const response = await run([
+      job(`orð ${listed}`, { dictionary: lines, hyphenChar: "|", typeset: false }),
+    ]);
+    expect(response.status).toBe(200);
+    const { results } = (await response.json()) as { results: string[] };
+    const at = (lines[7] ?? "").indexOf("-");
+    expect(results[0]).toBe(`orð ${listed.slice(0, at)}|${listed.slice(at)}`);
+  });
+
+  test("the lines of a dictionary count against maxCharacters", async () => {
+    const dictionary = dictionaryLines(200);
+    // 12 800 characters of dictionary each: three fit in 50 000, four do not.
+    const withDictionary = () => job("orð", { dictionary });
+    expect((await run([1, 2, 3].map(withDictionary))).status).toBe(200);
+    expect((await run([1, 2, 3, 4].map(withDictionary))).status).toBe(400);
+    expect((await run([withDictionary()], { maxCharacters: 12_000 })).status).toBe(400);
+  });
+
+  test("a request must say it is JSON, or it is a 415", async () => {
+    const body = JSON.stringify({ items: [job("orð")] });
+    const send = (headers?: HeadersInit) =>
+      handleSkiptingarRequest(
+        new Request("http://x/api", { method: "POST", body, headers })
+      );
+    // A body with no header is text/plain, which a cross-origin form can send.
+    expect((await send()).status).toBe(415);
+    expect((await send({ "content-type": "text/plain" })).status).toBe(415);
+    expect(
+      (await send({ "content-type": "application/x-www-form-urlencoded" })).status
+    ).toBe(415);
+    expect((await send({ "content-type": "application/json" })).status).toBe(200);
+    expect(
+      (await send({ "content-type": "Application/JSON; charset=utf-8" })).status
+    ).toBe(200);
+  });
+
+  test("a body over the size limit is a 413, with or without content-length", async () => {
+    const limits = { maxCharacters: 1000, maxItems: 5 };
+    const small = JSON.stringify({ items: [job("orð")] });
+    const huge = JSON.stringify({
+      items: [job("orð", { hyphenChar: "x".repeat(2_000_000) })],
+    });
+
+    const declared = new Request("http://x/api", {
+      method: "POST",
+      body: huge,
+      headers: { ...JSON_TYPE, "content-length": String(huge.length) },
+    });
+    expect((await handleSkiptingarRequest(declared, limits)).status).toBe(413);
+
+    // No header, and a header that lies: the stream is counted.
+    const streamOf = (text: string) =>
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          const bytes = new TextEncoder().encode(text);
+          for (let at = 0; at < bytes.length; at += 4096) {
+            controller.enqueue(bytes.subarray(at, at + 4096));
+          }
+          controller.close();
+        },
+      });
+    const streamed = (headers: HeadersInit) =>
+      new Request("http://x/api", {
+        method: "POST",
+        body: streamOf(huge),
+        headers: { ...JSON_TYPE, ...headers },
+        duplex: "half",
+      } as RequestInit);
+    expect((await handleSkiptingarRequest(streamed({}), limits)).status).toBe(413);
+    expect(
+      (await handleSkiptingarRequest(streamed({ "content-length": "10" }), limits)).status
+    ).toBe(413);
+
+    const ok = await handleSkiptingarRequest(
+      new Request("http://x/api", {
+        method: "POST",
+        headers: JSON_TYPE,
+        body: streamOf(small),
+      }),
+      limits
+    );
+    expect(ok.status).toBe(200);
+    // The default limits still take 50 000 characters of Icelandic.
+    expect((await run([job("orð ".repeat(12_500))])).status).toBe(200);
+  });
+
+  test("a request with no body is a 400", async () => {
+    const empty = new Request("http://x/api", { method: "POST", headers: JSON_TYPE });
+    expect((await handleSkiptingarRequest(empty)).status).toBe(400);
+  });
+
+  test("a word over 200 characters is a 400; addresses and spaced text pass", async () => {
+    const word = "sveitarstjórnarkosningar".repeat(9);
+    expect(word.length).toBeGreaterThan(200);
+    expect((await run([job(word)])).status).toBe(400);
+    expect((await run([job(`Orð ${word} orð`)])).status).toBe(400);
+    expect((await run([{ op: "analyze", word }])).status).toBe(400);
+    expect((await run([job(word, { typeset: false })])).status).toBe(400);
+    // Just inside the limit, and a limit of the caller's own.
+    expect((await run([job("a".repeat(200))])).status).toBe(200);
+    expect((await run([job("a".repeat(201))])).status).toBe(400);
+    expect((await run([job("a".repeat(30))], { maxWordLength: 20 })).status).toBe(400);
+    // A long line of short words is fine.
+    expect((await run([job("orð ".repeat(5000))])).status).toBe(200);
+
+    const url = `https://example.is/${"sveitarstjórnarkosningar".repeat(100)}`;
+    const started = performance.now();
+    const response = await run([
+      job(`Sjá (${url}) og www.example.is/${"a".repeat(500)}.`),
+    ]);
+    expect(response.status).toBe(200);
+    expect(performance.now() - started).toBeLessThan(500);
+    // A bare word glued to an address still counts.
+    expect((await run([job(`${word}${url}`)])).status).toBe(400);
+  });
+});
+
 describe("the remote client", () => {
   test("sends one request per tick, caches answers, and falls back on failure", async () => {
     const calls: unknown[] = [];
@@ -100,7 +402,11 @@ describe("the remote client", () => {
     globalThis.fetch = mock(async (_url: unknown, init?: RequestInit) => {
       calls.push(JSON.parse(String(init?.body)));
       return handleSkiptingarRequest(
-        new Request("http://x/api", { method: "POST", body: String(init?.body) })
+        new Request("http://x/api", {
+          method: "POST",
+          headers: init?.headers,
+          body: String(init?.body),
+        })
       );
     }) as unknown as typeof fetch;
     try {

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { lookupException, parseExceptions } from "../src/exceptions";
 import { EXCEPTION_COUNT } from "../src/generated/data";
+import { hyphenate } from "../src/hyphenate";
 
 const RAW_FILE = readFileSync(
   join(import.meta.dir, "..", "data", "exceptions.txt"),
@@ -56,5 +57,49 @@ describe("parseExceptions", () => {
     expect(() => parseExceptions("reykja=vík\nreykja-vík")).toThrow(
       /line 2: duplicate word "reykjavík"/
     );
+  });
+});
+
+describe("a caller's dictionary", () => {
+  const lines = Array.from({ length: 200 }, (_, index) => {
+    const id = [0, 1, 2, 3]
+      .map(place => String.fromCharCode(97 + (Math.floor(index / 26 ** place) % 26)))
+      .join("");
+    return `${id}${"x".repeat(29)}-${"y".repeat(30)}`;
+  });
+
+  test("is joined and compared once for an array, not once for a word", () => {
+    let joins = 0;
+    const dictionary = [...lines];
+    const join = dictionary.join.bind(dictionary);
+    dictionary.join = (separator?: string) => {
+      joins += 1;
+      return join(separator);
+    };
+    const words = "orðabókin hraðbraut ".repeat(8000).split(" ");
+    for (const word of words) {
+      lookupException(word, { dictionary, bundled: false });
+    }
+    expect(words).toHaveLength(16_001);
+    expect(joins).toBe(1);
+  });
+
+  test("a new array with the same lines gives the same answer", () => {
+    const word = (lines[3] ?? "").replace("-", "");
+    const ask = () => lookupException(word, { dictionary: [...lines], bundled: false });
+    expect(ask()?.breaks).toEqual([33]);
+    // A fresh array each time, as a component that writes the array inline does.
+    for (let i = 0; i < 100; i++) {
+      expect(ask()).toBe(ask());
+    }
+  });
+
+  test("16 000 words against 200 lines of 64 characters stay fast", () => {
+    const words = "orðabókin hraðbraut ".repeat(8000);
+    const started = performance.now();
+    hyphenate(words, { dictionary: lines });
+    // Joining and hashing the dictionary for each word took 360 ms here, and
+    // the whole text takes about 100 ms now. The bound is loose, for slow CI.
+    expect(performance.now() - started).toBeLessThan(1500);
   });
 });
