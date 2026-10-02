@@ -3,7 +3,6 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const PACKAGE_ROOT = join(import.meta.dir, "..");
-const SITE_ROOT = join(PACKAGE_ROOT, "..", "..", "..");
 const manifest = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")) as {
   exports: Record<string, { import: string; types: string } | string>;
 };
@@ -22,12 +21,9 @@ function sourceOf(subpath: string): string {
 
 const IMPORT = /import\s*\{([^}]*)\}\s*from\s*"skiptingar(\/[a-z]+)?"/g;
 
-/** Every value imported from the package in the README and the playground's copy. */
+/** Every value imported from the package in the README. */
 function documentedImports(): { subpath: string; name: string; where: string }[] {
-  const files = [
-    join(PACKAGE_ROOT, "README.md"),
-    join(SITE_ROOT, "src/lib/content/localhost-skiptingar.ts"),
-  ];
+  const files = [join(PACKAGE_ROOT, "README.md")];
   return files.flatMap(file =>
     [...readFileSync(file, "utf8").matchAll(IMPORT)].flatMap(match =>
       (match[1] ?? "")
@@ -41,15 +37,25 @@ function documentedImports(): { subpath: string; name: string; where: string }[]
 
 describe("package exports", () => {
   test("every export subpath is built from a source entry that exists", () => {
-    for (const subpath of Object.keys(manifest.exports)) {
-      if (subpath === "./package.json") {
+    for (const [subpath, target] of Object.entries(manifest.exports)) {
+      if (typeof target === "string") {
         continue;
       }
       expect(existsSync(sourceOf(subpath))).toBe(true);
     }
   });
 
-  test("every import shown in the README and on the playground exists", async () => {
+  test("every plain file export points at a file in the repo", () => {
+    for (const [subpath, target] of Object.entries(manifest.exports)) {
+      if (typeof target !== "string") {
+        continue;
+      }
+      expect(target, subpath).toBe(subpath);
+      expect(existsSync(join(PACKAGE_ROOT, target)), subpath).toBe(true);
+    }
+  });
+
+  test("every import shown in the README exists", async () => {
     const imports = documentedImports();
     expect(imports.length).toBeGreaterThan(5);
     for (const { subpath, name, where } of imports) {

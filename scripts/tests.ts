@@ -1,11 +1,11 @@
 /**
  * How many tests the package has, read from a real run and not typed in.
- * Runs `bun test` on the package's folder, reads the summary Bun prints
+ * Runs `bun test`, reads the summary Bun prints
  * (`N pass`, `N fail`, `Ran N tests across N files`) and writes `tests.json`,
  * which the playground's reference section reads. Failures are written down
  * as they are: the page never shows a green count over a red run.
  *
- * `bun run tests:count` from the repo root. Bun prints the summary on stderr,
+ * `bun run tests:count`. Bun prints the summary on stderr,
  * so both streams are read. `errors` counts errors outside any test, such as a
  * test file that failed to load; Bun leaves those out of `fail`.
  */
@@ -14,7 +14,6 @@ import { basename, join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
 const root = join(import.meta.dir, "..");
-const repo = join(root, "..", "..", "..");
 export const TESTS_PATH = join(root, "tests.json");
 
 export type TestCount = {
@@ -54,8 +53,8 @@ export function parseSummary(raw: string): TestCount {
 }
 
 if (import.meta.main) {
-  const run = Bun.spawn(["bun", "test", "src/packages/skiptingar"], {
-    cwd: repo,
+  const run = Bun.spawn(["bun", "test"], {
+    cwd: root,
     stdout: "pipe",
     stderr: "pipe",
   });

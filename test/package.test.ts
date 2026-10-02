@@ -16,7 +16,7 @@ const PACKAGE_ROOT = join(import.meta.dir, "..");
 
 describe("generated data", () => {
   test("src/generated/data.ts is up to date with the data files", () => {
-    // Failing here means: run `bun run generate:skiptingar` and commit the result.
+    // Failing here means: run `bun run generate` and commit the result.
     expect(readFileSync(GENERATED_PATH, "utf8")).toBe(buildDataModule());
   });
 

@@ -59,7 +59,7 @@ if (types.exitCode !== 0) {
 
 // Node16/NodeNext type resolution rejects extensionless relative imports, and
 // tsc emits the specifiers as the sources wrote them. The sources stay
-// extensionless (the site imports them through `@/packages/...`), so the
+// extensionless (bundlers resolve them without it), so the
 // emitted declarations get the extension here, the way Node resolves it.
 const RELATIVE_SPECIFIER =
   /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(["'])(\.{1,2}(?:\/[^"'\n]*)?)\2/g;
