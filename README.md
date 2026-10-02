@@ -11,7 +11,7 @@ Version 1 is three layers, and they are the defaults:
    badly (see below). They are experimental and may change; pass
    `rules: "ritreglur"` for the official Ritreglur minimums alone.
 2. **Typeset.** No-break spaces and Icelandic quotes, also on the server
-   (en dashes in ranges are one of the rules you can add). On by default in
+   (including en dashes in ranges). On by default in
    the components, the hooks and the handler; pass `typeset={false}` (or
    `typeset: false`) to hyphenate only.
 3. **Wrapping.** CSS `text-wrap: pretty` for body text and `balance` for
@@ -124,15 +124,16 @@ joiner (U+2060) after the en dash of a range, so `1990-2000` becomes
 | Number and unit      | `1.000 kr.`, `5 km`, `20 °C`                                                                   | `units`, on         |
 | Month and year       | `sept. 2027`, `ág. 2026`                                                                       | `dates`, on         |
 | Ordinal              | `30. september`, `1. sæti`                                                                     | `ordinals`, on      |
-| Abbreviation, number | `nr. 5`, `bls. 12`, `kl. 14.30`, `kt. 450190-2939`                                             | `prefixes`, on      |
-| Kennitala, phone     | `010190-2939`, `555-1234`, `+354 555 1234` never split                                         | `numbers`, on       |
+| Abbreviation, number | `nr. 5`, `bls. 12`, `kl. 14.30`, `kt. 011390-2939`                                             | `prefixes`, on      |
+| Kennitala, phone     | `011390-2939`, `588-5522`, `+354 588 5522` never split                                         | `numbers`, on       |
 | Title, initial       | `dr. Jón`, `Jón G. Sigurðsson`                                                                 | `titles`, on        |
 | Quotes               | `"orð"` → `„orð“`; a paired `'orð'` → `‚orð‘`, the mark for a word's meaning (Ritreglur §28.2) | `quotes`, on        |
 | One-letter words     | `á`, `í` never end a line                                                                      | `singleLetter`, off |
 | Last two words       | no one-word last line                                                                          | `lastWords`, off    |
-| Dashes               | `1990-2000` → `1990–2000`, `18.-21.`, `kl. 14.30-16.00`; a spaced dash stays on its line       | `dashes`, off       |
+| Dashes               | `1990-2000` → `1990–2000`, `18.-21.`, `kl. 14.30-16.00`; a spaced dash stays on its line       | `dashes`, on        |
 
-`{ preset: "typographic" }` turns every opt-in rule on.
+`{ preset: "typographic" }` also turns on the two rules that are off by
+default, `singleLetter` and `lastWords`.
 
 For a quote inside a quote, Icelandic uses `„…“` again (Ritreglur §28.1), so
 type it that way.
@@ -236,8 +237,8 @@ function Caption({ text }: { text: string }) {
 ```
 
 Use this for text that only exists in the browser, like something a user
-types. The patterns load lazily the first time, <!-- size:patterns -->48.9 kB<!-- /size --> brotli for the core
-and its patterns; the full client entry is <!-- size:client -->7.6 kB<!-- /size --> brotli,
+types. The patterns load lazily the first time, <!-- size:patterns -->49.8 kB<!-- /size --> brotli for the core
+and its patterns; the full client entry is <!-- size:client -->7.9 kB<!-- /size --> brotli,
 and Settle rag alone (`SettledText`) <!-- size:rag -->5.4 kB<!-- /size -->. Until then the
 hook returns the text as it is, and so does it if the chunk fails to load. The
 next component that mounts tries the load again. A component that mounts after
@@ -302,7 +303,7 @@ server-rendered paragraph can move slightly once.
 
 #### Hyphenate browser text on your server
 
-The hyphenation core and its patterns are <!-- size:patterns -->48.9 kB<!-- /size --> brotli. A page
+The hyphenation core and its patterns are <!-- size:patterns -->49.8 kB<!-- /size --> brotli. A page
 that has a server can skip them:
 mount the handler on a POST route and point the client at it once.
 
@@ -323,7 +324,10 @@ it is processed yet) and `useAnalyzeWord` then ask the endpoint. Requests in
 one tick go out as one, answers are cached, and if the endpoint fails the
 hooks load the patterns instead. The handler uses the standard `Request` and
 `Response`, so it also runs in Bun, Deno or a worker; it limits a request to
-200 jobs and 50 000 characters.
+200 jobs and 50 000 characters, a word to 200 characters (web addresses
+excepted), and refuses unknown options, a large body (413) and a request
+that is not `application/json` (415). The lines of a `dictionary` count as
+characters.
 
 For the core itself, `useSkiptingar()` returns it once it has loaded and `null`
 before that, on the server and if the load fails. Mounting starts the load.
@@ -344,7 +348,8 @@ the core and its pattern data.
 
 `<CleanCopy />` mounts once per page and cleans copied text: soft hyphens are
 removed, no-break spaces become spaces and U+2011 becomes a normal hyphen, so
-pasted text is clean. It doesn't change what find-in-page sees.
+pasted text is clean. It doesn't change what find-in-page sees. On its own
+it is <!-- size:cleanCopy -->0.6 kB<!-- /size --> brotli.
 
 ## Browser support
 
@@ -403,11 +408,11 @@ say what to use instead of writing it yourself.
   þ→th, ð→d, æ→ae and ö→o, the ÍST 130 table.
 - **Names in a sentence** (`til Jóns`, `Jóni`) need declension. Use
   [beygla](https://www.npmjs.com/package/beygla).
-- **Kennitala:** format it (`typeset()` keeps `010190-2939` on one line), but do
+- **Kennitala:** format it (`typeset()` keeps `011390-2939` on one line), but do
   not validate the check digit. Þjóðskrá stopped using it for new numbers on
   18 February 2026. See
   [kennitölur án vartölu](https://www.skra.is/folk/eg-i-thjodskra/um-kennitolur/kennitolur-an-vartolu/).
-- **Phone numbers:** `555-1234` and `555 1234` are kept together by `typeset()`.
+- **Phone numbers:** `588-5522` and `588 5522` are kept together by `typeset()`.
   Browsers otherwise break after the hyphen.
 
 ## Credits

@@ -3,7 +3,7 @@
  *   space -> no-break space (U+00A0), quote -> quote, hyphen -> en dash.
  * That is what lets `typesetSegments` join the segments, apply the rules
  * across their borders and cut the result back at the original offsets.
- * The one addition: with `dashes`, a word joiner (U+2060) goes after the en
+ * The one addition: with `dashes` (on by default), a word joiner (U+2060) goes after the en
  * dash of a range, so `1990–2010` never breaks after the dash. It is
  * inserted after the cut, at its offset, the way soft hyphens are.
  *
@@ -20,7 +20,10 @@ import {
 import { findProtectedMask, isProtected, type Mask } from "./url";
 
 export type TypesetOptions = {
-  /** "typographic" turns every opt-in rule on. Explicit options still win. */
+  /**
+   * "typographic" also turns on the rules that are off by default
+   * (`singleLetter` and `lastWords`). Explicit options still win.
+   */
   preset?: "default" | "typographic";
   /**
    * Icelandic double quotes „…“, and a paired single quote as ‚…‘, the mark
@@ -35,7 +38,7 @@ export type TypesetOptions = {
    * En dashes in number ranges (`1990–2000`, `kl. 14.30–16.00`, `18.–21.`,
    * `mars–14. apríl`) and spaced hyphens, a word joiner after a range's dash so
    * the range stays on one line, and a no-break space before a spaced dash so
-   * a line never starts with one. Default false.
+   * a line never starts with one. Default true.
    */
   dashes?: boolean;
   /** No-break space between a number and its unit: `1.000 kr.`, `5 km`. Default true. */
@@ -455,7 +458,7 @@ function resolveOptions(options: TypesetOptions): ResolvedOptions {
     quotes: options.quotes ?? true,
     singleLetter: options.singleLetter ?? all,
     lastWords: options.lastWords ?? all,
-    dashes: options.dashes ?? all,
+    dashes: options.dashes ?? true,
     numbers: options.numbers ?? true,
     units: options.units ?? true,
     dates: options.dates ?? true,

@@ -30,8 +30,8 @@ The first version meant for npm. The API may still change before 1.0.
   `typeset`.
 - `typeset()`: no-break spaces for numbers and units, dates, ordinals,
   abbreviations with numbers, titles and initials; kennitala and phone
-  numbers kept on one line; Icelandic quotes; opt-in en dashes, one-letter
-  words and last two words. Every rule has its own option.
+  numbers kept on one line; Icelandic quotes; en dashes in ranges. One-letter
+  words and the last two words are opt-in. Every rule has its own option.
 - `skiptingar/react`: `<Hyphenate>` and `<Typeset>` for server components.
 - `skiptingar/client`: Settle rag (`SettledText`, `useSettledRag`,
   `useRagPlan`, `settle` for plain DOM), `useHyphenate` with lazily loaded

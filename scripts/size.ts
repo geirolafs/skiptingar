@@ -33,6 +33,10 @@ const SETUPS = {
     label: "the full client entry",
     code: `import * as client from "${src}/client/index"; console.log(client);`,
   },
+  cleanCopy: {
+    label: "Clean copy only (CleanCopy)",
+    code: `import { CleanCopy } from "${src}/client/index"; console.log(CleanCopy);`,
+  },
   browser: {
     label: "useHyphenate in the browser, patterns included",
     code: `import { useHyphenate } from "${src}/client/index"; console.log(useHyphenate);`,
@@ -77,9 +81,13 @@ async function measureEntry(code: string): Promise<{ eager: Buffer[]; lazy: Buff
   const dir = join(tmpdir(), "skiptingar-size");
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
+  let previousNodeEnv: string | undefined;
   try {
     const entry = join(dir, "entry.ts");
     await writeFile(entry, code);
+    // Only for the build: left set, it would leak into whatever process runs
+    // this (the test run), and React's server entry would load its production build.
+    previousNodeEnv = process.env.NODE_ENV;
     Object.assign(process.env, { NODE_ENV: "production" });
     const result = await Bun.build({
       entrypoints: [entry],
@@ -122,6 +130,11 @@ async function measureEntry(code: string): Promise<{ eager: Buffer[]; lazy: Buff
       lazy: bytes([...everything].filter(path => !eager.has(path))),
     };
   } finally {
+    if (previousNodeEnv === undefined) {
+      Reflect.deleteProperty(process.env, "NODE_ENV");
+    } else {
+      Object.assign(process.env, { NODE_ENV: previousNodeEnv });
+    }
     await rm(dir, { recursive: true, force: true });
   }
 }

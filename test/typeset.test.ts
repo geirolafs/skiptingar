@@ -328,7 +328,7 @@ describe("rule 7: last two words (opt-in)", () => {
   });
 });
 
-describe("rule 8: dashes (opt-in)", () => {
+describe("rule 8: dashes", () => {
   test.each([
     ["Árin 1990-2000 voru góð", "Árin 1990–\u20602000 voru góð"],
     ["Reykjavík - Akureyri", "Reykjavík\u00a0– Akureyri"],
@@ -384,8 +384,19 @@ describe("rule 8: dashes (opt-in)", () => {
     }
   });
 
-  test("is off by default", () => {
-    expect(typeset("Árin 1990-2000 og a - b")).toBe("Árin 1990-2000 og a - b");
+  test("is on by default", () => {
+    expect(show(typeset("Árin 1990-2000 og a - b"))).toBe(
+      "Árin 1990–\u20602000 og a~– b"
+    );
+    expect(typeset("Árin 1990-2000 og a - b")).toBe(
+      typeset("Árin 1990-2000 og a - b", { dashes: true })
+    );
+  });
+
+  test("dashes: false leaves ranges and spaced hyphens alone", () => {
+    expect(typeset("Árin 1990-2000 og a - b", { dashes: false })).toBe(
+      "Árin 1990-2000 og a - b"
+    );
   });
 });
 
@@ -414,7 +425,9 @@ describe("numbers: kennitala and phone numbers stay on one line", () => {
     "Dagsetning 2026-09-30",
     "Sími 55-1234",
   ])("leaves %p alone", input => {
-    expect(typeset(input)).toBe(input);
+    // With dashes off: on by default it reads a hyphen that is not a phone
+    // number or kennitala shape ("555-12345", "55-1234") as a range.
+    expect(typeset(input, { dashes: false })).toBe(input);
   });
 
   test("leaves numbers inside a URL alone", () => {
@@ -439,8 +452,8 @@ describe("numbers: kennitala and phone numbers stay on one line", () => {
     expect(typeset("sími 555-1234", { numbers: false })).toBe("sími 555-1234");
   });
 
-  test("a range still becomes an en dash when dashes is on", () => {
-    expect(typeset("Árin 1990-2000 og sími 555-1234", { dashes: true })).toBe(
+  test("a range becomes an en dash while a phone number keeps its hyphen", () => {
+    expect(typeset("Árin 1990-2000 og sími 555-1234")).toBe(
       `Árin 1990–\u20602000 og sími 555${NBH}1234`
     );
   });
@@ -547,7 +560,11 @@ describe("sep. as a September abbreviation", () => {
 describe("options", () => {
   const text = 'Hann fór á "fund" 1990-2000 og kom heim.';
 
-  test("the typographic preset turns every opt-in rule on", () => {
+  test("the default sets ranges but leaves one-letter words and the last two words", () => {
+    expect(show(typeset(text))).toBe("Hann fór á „fund“ 1990–\u20602000 og kom heim.");
+  });
+
+  test("the typographic preset turns on the rules that are off by default", () => {
     expect(show(typeset(text, { preset: "typographic" }))).toBe(
       "Hann fór á~„fund“ 1990–\u20602000 og kom~heim."
     );
@@ -815,7 +832,8 @@ describe("ranges stay on one line", () => {
   });
 
   test("nothing is inserted without dashes, or inside a URL", () => {
-    expect(typeset("1990–2010")).toBe("1990–2010");
+    expect(typeset("1990–2010", { dashes: false })).toBe("1990–2010");
+    expect(typeset("1990–2010")).toBe("1990–\u20602010");
     expect(typeset("Sjá example.is/1990–2010", { dashes: true })).toBe(
       "Sjá example.is/1990–2010"
     );
