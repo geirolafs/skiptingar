@@ -41,14 +41,17 @@ Hann sagði „Verð 1.000⍽kr. frá 30.⍽september“
 
 ## Status
 
-Not on npm yet. It lives in a website repo while the API settles; the
-`package.json` is marked private so it can't be published by accident. To
-try it in another project, build it (`bun run build` in this folder writes
-`dist/` with the three entry points and their types) and depend on the
-folder. It has no runtime dependencies. React 18 or newer is only needed for
-the React and client entry points (they use no React 19-only API; the tests
-run on React 19). `bun run size` prints what each entry costs a
-browser, and `bun run bench` how fast the core runs.
+`0.1.0` is the first version on npm. The API may still change before 1.0.
+
+```sh
+npm install skiptingar
+```
+
+It is ESM only and has no runtime dependencies. React 18 or newer is only
+needed for the React and client entry points (they use no React 19-only API;
+the tests run on React 19). The source lives in a website repo while the API
+settles. There, `bun run size` prints what each entry costs a browser, and
+`bun run bench` how fast the core runs.
 
 ## Three ways to use it
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (not released)
+## 0.1.0 (2026-10-02)
 
 The first version meant for npm. The API may still change before 1.0.
 
