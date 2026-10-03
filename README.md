@@ -76,7 +76,7 @@ Three layers, all on the server and all on by default:
 2. **Better breaks.** They keep only the legal breaks that read well. They
    drop 29% of the breaks Ritreglur allows (122 032 of 416 492 across the
    218 308 words the 2020 patterns were trained on). They are new and under
-   development, so they may change. `rules: "ritreglur"` turns them off.
+   development, so they may change. `betterBreaks: false` turns them off.
 3. **Locale details.** No-break spaces keep a number with its unit
    (`1.000 kr.`), a day with its month (`30. september`), an ordinal with its
    word (`1. sæti`), an abbreviation with its number (`bls. 12`) and a title
@@ -180,9 +180,9 @@ localeDetails('Verð 1.000 kr. frá 30. september, sagði "hann"');
 
 | Option | Default | |
 | --- | --- | --- |
-| `rules` | `"typographic"` | better breaks; `"ritreglur"` turns them off |
-| `minWordLength`, `leftMin`, `rightMin` | from `rules` | override one number, keep the rest (`4`, `1`, `2` with `"ritreglur"`) |
-| `hyphenChar` | `"­"` | use `"-"` to see the breaks |
+| `betterBreaks` | `true` | better breaks; `false` gives the Ritreglur minimums |
+| `minWordLength`, `leftMin`, `rightMin` | from `betterBreaks` | override one number, keep the rest (`4`, `1`, `2` with `betterBreaks: false`) |
+| `hyphenChar` | `"\u00AD"` (soft hyphen) | use `"-"` to see the breaks |
 | `dictionary` | none | your own words, e.g. `["forn=aldar=frægð"]` |
 
 A line in a `dictionary` is one lowercase word where `-` is a break and `=` is
@@ -296,7 +296,7 @@ function Caption({ text }: { text: string }) {
 
 Use this for text that exists only in the browser, like something a user
 types. It adds the locale details too, unless you pass `localeDetails: false`. The
-patterns load lazily the first time: <!-- size:patterns -->49.8 kB<!-- /size --> brotli for the core and its
+patterns load lazily the first time: <!-- size:patterns -->49.7 kB<!-- /size --> brotli for the core and its
 patterns, while the client entry itself is <!-- size:client -->3.1 kB<!-- /size --> brotli. Until then the hook
 returns the text as it is, and so it does if the chunk fails to load. The next
 component that mounts tries the load again. A component that mounts after the

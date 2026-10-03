@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 (2026-10-03)
+
+Breaking: `rules` is now `betterBreaks`, a boolean named after the layer it
+switches, like `localeDetails`. `rules: "typographic"` (the default) is
+`betterBreaks: true`; `rules: "ritreglur"` is `betterBreaks: false`. This
+applies to `hyphenate()` and the other functions, `<Hyphenate>`, the client
+hooks and the endpoint request, which now refuses `rules` with a 400.
+
 ## 0.3.0 (2026-10-03)
 
 Breaking: `localeDetails()` no longer takes `preset`. It only turned on

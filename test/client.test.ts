@@ -326,8 +326,8 @@ describe("useSkiptingar on the server", () => {
 
 describe("hook options", () => {
   test("optionsKey ignores key order, identity and undefined values", () => {
-    expect(optionsKey({ mode: "heading", rules: "ritreglur" })).toBe(
-      optionsKey({ rules: "ritreglur", mode: "heading", leftMin: undefined })
+    expect(optionsKey({ mode: "heading", betterBreaks: false })).toBe(
+      optionsKey({ betterBreaks: false, mode: "heading", leftMin: undefined })
     );
     expect(optionsKey(undefined)).toBe(optionsKey({}));
     expect(optionsKey({ mode: "heading" })).not.toBe(optionsKey({ mode: "body" }));
@@ -382,7 +382,7 @@ describe("hook options", () => {
     expect(new Set(keys).size).toBe(1);
     expect(optionsKey({ localeDetails: false })).not.toBe(keys[0]);
     expect(optionsKey({ localeDetails: { dashes: true } })).not.toBe(keys[0]);
-    expect(optionsKey({ rules: "ritreglur" })).not.toBe(keys[0]);
+    expect(optionsKey({ betterBreaks: false })).not.toBe(keys[0]);
   });
 
   test("applyOptionsKey only hyphenates with localeDetails: false", async () => {

@@ -688,17 +688,17 @@ describe("Unicode normalisation", () => {
   test("<Hyphenate> on NFD text produces the NFC hyphenated output", () => {
     const nfc = "Þjóðleikhúsið er íþróttafélagið á ástríða";
     const html = render(
-      <Hyphenate rules="ritreglur">
+      <Hyphenate betterBreaks={false}>
         <p>{nfc.normalize("NFD")}</p>
       </Hyphenate>
     );
-    expect(html).toBe(`<p>${hyphenate(nfc, { rules: "ritreglur" })}</p>`);
+    expect(html).toBe(`<p>${hyphenate(nfc, { betterBreaks: false })}</p>`);
     expect(html).toContain(SHY);
   });
 
   test("segments split by an inline element are normalised before locale details", () => {
     const html = render(
-      <Hyphenate rules="ritreglur">
+      <Hyphenate betterBreaks={false}>
         <p>
           {'Hann sagði "'.normalize("NFD")}
           <em>{"Þjóðleikhúsið".normalize("NFD")}</em>
@@ -707,7 +707,7 @@ describe("Unicode normalisation", () => {
       </Hyphenate>
     );
     expect(html).toBe(
-      `<p>Hann sagði „<em>${hyphenate("Þjóðleikhúsið", { rules: "ritreglur" })}</em>“ og fór</p>`
+      `<p>Hann sagði „<em>${hyphenate("Þjóðleikhúsið", { betterBreaks: false })}</em>“ og fór</p>`
     );
   });
 
@@ -750,13 +750,13 @@ describe("words split by inline markup", () => {
 
   test("a valid break on the border is kept", () => {
     const html = render(
-      <Hyphenate rules="ritreglur">
+      <Hyphenate betterBreaks={false}>
         <p>
           hest<span>arnir</span>
         </p>
       </Hyphenate>
     );
-    expect(hyphenate("hestarnir", { rules: "ritreglur" })).toBe(`hest${SHY}arn${SHY}ir`);
+    expect(hyphenate("hestarnir", { betterBreaks: false })).toBe(`hest${SHY}arn${SHY}ir`);
     expect(html).toBe(`<p>hest${SHY}<span>arn${SHY}ir</span></p>`);
   });
 
@@ -775,17 +775,17 @@ describe("words split by inline markup", () => {
 describe("processSegments", () => {
   test("returns one segment for each input and cuts a border break to the earlier one", () => {
     const out = processSegments(["hest", "arnir"], {
-      hyphenate: { rules: "ritreglur" },
+      hyphenate: { betterBreaks: false },
     });
     expect(out).toEqual([`hest${SHY}`, `arn${SHY}ir`]);
   });
 
   test("normalises, removes soft hyphens, and uses a custom hyphen character", () => {
     const out = processSegments([`Hrað${SHY}braut`.normalize("NFD"), "ar"], {
-      hyphenate: { hyphenChar: "|", rules: "ritreglur" },
+      hyphenate: { hyphenChar: "|", betterBreaks: false },
     });
     expect(out.join("")).toBe(
-      hyphenate("Hraðbrautar", { rules: "ritreglur", hyphenChar: "|" })
+      hyphenate("Hraðbrautar", { betterBreaks: false, hyphenChar: "|" })
     );
     expect(out).toHaveLength(2);
   });

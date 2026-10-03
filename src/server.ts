@@ -118,7 +118,7 @@ const isDictionary: Check = value => {
 const HYPHENATE_CHECKS = {
   mode: oneOf("body", "heading"),
   joints: oneOf("only", "prefer"),
-  rules: oneOf("typographic", "ritreglur"),
+  betterBreaks: isBoolean,
   minWordLength: isSmallInteger,
   leftMin: isSmallInteger,
   rightMin: isSmallInteger,

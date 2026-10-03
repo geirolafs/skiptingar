@@ -12,25 +12,25 @@ import {
 } from "../src";
 
 const SHY = "­";
-const RITREGLUR = { rules: "ritreglur" } as const;
+const RITREGLUR = { betterBreaks: false } as const;
 // The 2020 patterns and the official minimums, nothing else: what the
-// typographic rules are turned off to get. Asked for out loud.
-const RAW_RITREGLUR = { rules: "ritreglur", exceptions: false } as const;
+// better breaks are turned off to get. Asked for out loud.
+const RAW_RITREGLUR = { betterBreaks: false, exceptions: false } as const;
 // The experimental layers are not part of v1 and off by default: tests for
 // them ask for them.
-const WITH_LIST = { rules: "ritreglur", exceptions: true } as const;
-const WITH_SKIP = { rules: "ritreglur", skipAcronyms: true } as const;
-// The experimental preset, which is not the default: tests for it ask for it.
-const TYPOGRAPHIC = { rules: "typographic" } as const;
+const WITH_LIST = { betterBreaks: false, exceptions: true } as const;
+const WITH_SKIP = { betterBreaks: false, skipAcronyms: true } as const;
+// Better breaks are the default; tests that mean them say so.
+const BETTER_BREAKS = { betterBreaks: true } as const;
 // Heading mode finds its joints in the exception list, so it needs the list.
-const HEADING_TYPOGRAPHIC = {
+const HEADING_BETTER_BREAKS = {
   mode: "heading",
-  rules: "typographic",
+  betterBreaks: true,
   exceptions: true,
 } as const;
 const HEADING_RITREGLUR = {
   mode: "heading",
-  rules: "ritreglur",
+  betterBreaks: false,
   exceptions: true,
 } as const;
 
@@ -70,7 +70,7 @@ describe("ritreglur output", () => {
   });
 });
 
-describe("the default rules are typographic", () => {
+describe("better breaks are the default", () => {
   test("a word with one letter before the break stays whole", () => {
     expect(hyphenate("ólán")).toBe("ólán");
     expect(hyphenate("ádrepa")).toBe("ádrepa");
@@ -78,15 +78,15 @@ describe("the default rules are typographic", () => {
     expect(show(hyphenate("ádrepa", RITREGLUR))).toBe("á-drepa");
   });
 
-  test("the default equals rules: 'typographic' in every call", () => {
+  test("the default equals betterBreaks: true in every call", () => {
     const text = "Sigurðardóttir ræddi ástríðu og framkvæmdarvaldið á Akureyri";
     for (const mode of ["body", "heading"] as const) {
-      expect(hyphenate(text, { mode })).toBe(hyphenate(text, { mode, ...TYPOGRAPHIC }));
+      expect(hyphenate(text, { mode })).toBe(hyphenate(text, { mode, ...BETTER_BREAKS }));
       expect(analyzeWord("Sigurðardóttir", { mode })).toEqual(
-        analyzeWord("Sigurðardóttir", { mode, ...TYPOGRAPHIC })
+        analyzeWord("Sigurðardóttir", { mode, ...BETTER_BREAKS })
       );
       expect(hyphenateWord("framkvæmdarvaldið", { mode })).toEqual(
-        hyphenateWord("framkvæmdarvaldið", { mode, ...TYPOGRAPHIC })
+        hyphenateWord("framkvæmdarvaldið", { mode, ...BETTER_BREAKS })
       );
     }
   });
@@ -109,12 +109,10 @@ describe("the default rules are typographic", () => {
     ["ólán", "ólán", "ó-lán"],
     ["Icelandair", "Icelandair", "Ic-elandair"],
   ])(
-    "%s: typographic by default, Ritreglur when asked",
-    (word, typographic, ritreglur) => {
-      expect(show(hyphenate(word))).toBe(typographic);
-      expect(show(hyphenate(word, { exceptions: false, mode: "body" }))).toBe(
-        typographic
-      );
+    "%s: better breaks by default, Ritreglur minimums when asked",
+    (word, better, ritreglur) => {
+      expect(show(hyphenate(word))).toBe(better);
+      expect(show(hyphenate(word, { exceptions: false, mode: "body" }))).toBe(better);
       expect(show(hyphenate(word, RITREGLUR))).toBe(ritreglur);
     }
   );
@@ -128,7 +126,7 @@ describe("the default rules are typographic", () => {
     const word = "hraðbrautarframkvæmdir";
     // The list is on in all three calls, so only `mode` differs: heading mode
     // finds joints in the list, body mode (the default) ignores them.
-    const listed = { rules: "ritreglur", exceptions: true } as const;
+    const listed = { betterBreaks: false, exceptions: true } as const;
     expect(hyphenate(word, listed)).toBe(hyphenate(word, { ...listed, mode: "body" }));
     expect(show(hyphenate(word, listed))).toBe("hrað-braut-ar-fram-kvæmd-ir");
     expect(show(hyphenate(word, { ...listed, mode: "heading" }))).toBe(
@@ -167,39 +165,43 @@ describe("the v1 defaults: no list, no acronym skip", () => {
 
   test("a heading without the list has no joints to prefer", () => {
     expect(
-      show(hyphenate("Sigurðardóttir", { mode: "heading", rules: "ritreglur" }))
+      show(hyphenate("Sigurðardóttir", { mode: "heading", betterBreaks: false }))
     ).toBe("Sig-urð-ar-dótt-ir");
   });
 });
 
-describe("typographic presets", () => {
+describe("better breaks", () => {
   test("body drops short-word and short-margin breaks", () => {
-    expect(hyphenate("ólán", TYPOGRAPHIC)).toBe("ólán");
-    expect(show(hyphenate("ádrepa", TYPOGRAPHIC))).toBe("ádrepa");
-    expect(show(hyphenate("íþróttafélagið", TYPOGRAPHIC))).toBe("íþrótta-fé-lagið");
+    expect(hyphenate("ólán", BETTER_BREAKS)).toBe("ólán");
+    expect(show(hyphenate("ádrepa", BETTER_BREAKS))).toBe("ádrepa");
+    expect(show(hyphenate("íþróttafélagið", BETTER_BREAKS))).toBe("íþrótta-fé-lagið");
   });
 
   test("body keeps breaks that fit inside the limits", () => {
-    expect(show(hyphenate("þjóðfélagsumræða", TYPOGRAPHIC))).toBe("þjóð-fé-lags-um-ræða");
-    expect(show(hyphenate("Þjóðfélagsumræðan", TYPOGRAPHIC))).toBe(
+    expect(show(hyphenate("þjóðfélagsumræða", BETTER_BREAKS))).toBe(
+      "þjóð-fé-lags-um-ræða"
+    );
+    expect(show(hyphenate("Þjóðfélagsumræðan", BETTER_BREAKS))).toBe(
       "Þjóð-fé-lags-um-ræðan"
     );
   });
 
   test("heading skips words shorter than 12 letters", () => {
-    expect(hyphenate("Reykjavík", HEADING_TYPOGRAPHIC)).toBe("Reykjavík");
+    expect(hyphenate("Reykjavík", HEADING_BETTER_BREAKS)).toBe("Reykjavík");
   });
 
   test("heading uses only the joints of a known compound", () => {
     expect(
-      show(hyphenate("Vaðlaheiðarvegavinnuverkfærageymsluskúr", HEADING_TYPOGRAPHIC))
+      show(hyphenate("Vaðlaheiðarvegavinnuverkfærageymsluskúr", HEADING_BETTER_BREAKS))
     ).toBe("Vaðla-heiðar-vega-vinnu-verkfæra-geymslu-skúr");
-    expect(show(hyphenate("hönnunarstofa", HEADING_TYPOGRAPHIC))).toBe("hönnunar-stofa");
+    expect(show(hyphenate("hönnunarstofa", HEADING_BETTER_BREAKS))).toBe(
+      "hönnunar-stofa"
+    );
   });
 
   test("heading falls back to patterns when the word has no joints", () => {
     // "upplýsingatækniráðgjöf" is not in the list, so patterns with heading limits apply.
-    expect(show(hyphenate("upplýsingatækniráðgjöf", HEADING_TYPOGRAPHIC))).toBe(
+    expect(show(hyphenate("upplýsingatækniráðgjöf", HEADING_BETTER_BREAKS))).toBe(
       "upp-lýs-inga-tækni-ráð-gjöf"
     );
   });
@@ -213,7 +215,7 @@ describe("typographic presets", () => {
   test("exceptions:false ignores joints in heading mode", () => {
     const raw = show(
       hyphenate("Vaðlaheiðarvegavinnuverkfærageymsluskúr", {
-        ...HEADING_TYPOGRAPHIC,
+        ...HEADING_BETTER_BREAKS,
         exceptions: false,
       })
     );
@@ -348,11 +350,11 @@ describe("official Ritreglur examples", () => {
     expect(show(hyphenate("ástríða", RAW_RITREGLUR))).toBe("ástríða");
   });
 
-  test("typographic body with the list keeps víta-mín and drops the one-letter á-", () => {
-    expect(show(hyphenate("vítamín", { ...TYPOGRAPHIC, exceptions: true }))).toBe(
+  test("better breaks in body with the list keep víta-mín and drops the one-letter á-", () => {
+    expect(show(hyphenate("vítamín", { ...BETTER_BREAKS, exceptions: true }))).toBe(
       "víta-mín"
     );
-    expect(show(hyphenate("ástríða", { ...TYPOGRAPHIC, exceptions: true }))).toBe(
+    expect(show(hyphenate("ástríða", { ...BETTER_BREAKS, exceptions: true }))).toBe(
       "ástríða"
     );
   });
@@ -370,11 +372,11 @@ describe("name joints (NAME_ENDINGS)", () => {
     expect(show(hyphenate(word, HEADING_RITREGLUR))).toBe(expected);
   });
 
-  test("the typographic heading preset uses the joint of a long name", () => {
-    expect(show(hyphenate("Sigurðardóttir", HEADING_TYPOGRAPHIC))).toBe(
+  test("better breaks in heading mode use the joint of a long name", () => {
+    expect(show(hyphenate("Sigurðardóttir", HEADING_BETTER_BREAKS))).toBe(
       "Sigurðar-dóttir"
     );
-    expect(show(hyphenate("Guðmundsson", HEADING_TYPOGRAPHIC))).toBe("Guðmundsson");
+    expect(show(hyphenate("Guðmundsson", HEADING_BETTER_BREAKS))).toBe("Guðmundsson");
   });
 
   test.each([
@@ -403,8 +405,8 @@ describe("name joints (NAME_ENDINGS)", () => {
     "%s is identical to the raw patterns in every mode",
     word => {
       for (const mode of ["body", "heading"] as const) {
-        for (const rules of ["typographic", "ritreglur"] as const) {
-          const options = { mode, rules, minWordLength: 4, exceptions: true };
+        for (const betterBreaks of [true, false]) {
+          const options = { mode, betterBreaks, minWordLength: 4, exceptions: true };
           expect(hyphenate(word, options)).toBe(
             hyphenate(word, { ...options, exceptions: false })
           );
@@ -412,7 +414,7 @@ describe("name joints (NAME_ENDINGS)", () => {
       }
       expect(show(hyphenate("majónes", RITREGLUR))).toBe("maj-ón-es");
       expect(show(hyphenate("Jóhannes", RITREGLUR))).toBe("Jó-hann-es");
-      expect(show(hyphenate("majónes", TYPOGRAPHIC))).toBe("maj-ónes");
+      expect(show(hyphenate("majónes", BETTER_BREAKS))).toBe("maj-ónes");
     }
   );
 
@@ -488,7 +490,7 @@ describe("acronyms (skipAcronyms, experimental)", () => {
     expect(show(hyphenate("UNESCO", { ...RITREGLUR, skipAcronyms: false }))).toBe(
       "U-NESCO"
     );
-    // Under the typographic default they stay whole anyway, but for another
+    // With better breaks, the default, they stay whole anyway, but for another
     // reason: the c in a capitalised name (the foreign-name rule), not the skip.
     expect(hyphenate("UNESCO")).toBe("UNESCO");
   });
@@ -686,7 +688,7 @@ describe("character constants", () => {
   });
 });
 
-describe("linking syllables (typographic rules)", () => {
+describe("linking syllables (better breaks)", () => {
   test.each([
     ["stjórnarvöld", "stjórnar-völd"],
     ["sveitarstjórnarkosningum", "sveitar-stjórnar-kosn-ingum"],
@@ -695,20 +697,20 @@ describe("linking syllables (typographic rules)", () => {
     ["ráðuneytisins", "ráðu-neytis-ins"],
     ["Hraðbrautarframkvæmdir", "Hrað-brautar-fram-kvæmdir"],
   ])("%s keeps the break after the genitive, not before it", (word, expected) => {
-    expect(show(hyphenate(word, TYPOGRAPHIC))).toBe(expected);
+    expect(show(hyphenate(word, BETTER_BREAKS))).toBe(expected);
   });
 
-  test("typographic is the default, so the break before the genitive goes; ritreglur keeps every break", () => {
+  test("better breaks are the default, so the break before the genitive goes; ritreglur keeps every break", () => {
     expect(show(hyphenate("stjórnarvöld", RITREGLUR))).toBe("stjórn-ar-völd");
     expect(show(hyphenate("stjórnarvöld"))).toBe("stjórnar-völd");
   });
 
   test("a syllable followed by only an ending is not a link", () => {
-    expect(show(hyphenate("angurs", TYPOGRAPHIC))).toBe("ang-urs");
+    expect(show(hyphenate("angurs", BETTER_BREAKS))).toBe("ang-urs");
   });
 
   test("a listed word's joints are never dropped", () => {
-    const listed = { ...TYPOGRAPHIC, exceptions: true } as const;
+    const listed = { ...BETTER_BREAKS, exceptions: true } as const;
     expect(show(hyphenate("sveitarstjórnarkosningar", listed))).toBe(
       "sveitar-stjórnar-kosn-ingar"
     );
@@ -723,7 +725,7 @@ describe("heading mode falls back when no joint fits", () => {
     ["Hafnarfjarðarbær", "Hafnar-fjarðarbær"],
     ["Akureyrarbær", "Akur-eyrarbær"],
   ])("%s keeps breaks although its name joint is too near the end", (word, expected) => {
-    expect(show(hyphenate(word, HEADING_TYPOGRAPHIC))).toBe(expected);
+    expect(show(hyphenate(word, HEADING_BETTER_BREAKS))).toBe(expected);
   });
 
   test("name endings only apply to capitalised words", () => {
@@ -738,7 +740,7 @@ describe("tokens with digits or a slash", () => {
     ["2026-sveitarstjórnarkosningarnar", "2026-sveitar-stjórnar-kosn-ing-arnar"],
     ["íþrótta-/tómstundastarfsemi", "íþrótta-/tóm-stunda-starf-semi"],
   ])("%s still breaks its words", (token, expected) => {
-    expect(show(hyphenate(token, TYPOGRAPHIC))).toBe(expected);
+    expect(show(hyphenate(token, BETTER_BREAKS))).toBe(expected);
   });
 });
 
@@ -749,11 +751,11 @@ describe("linked joints in heading mode", () => {
     ["KEFLAVÍKURFLUGVÖLLUR", "KEFLAVÍKUR-FLUGVÖLLUR"],
     ["hjúkrunarfræðingar", "hjúkrunar-fræðingar"],
   ])("%s breaks only after its linking syllables", (word, expected) => {
-    expect(show(hyphenate(word, HEADING_TYPOGRAPHIC))).toBe(expected);
+    expect(show(hyphenate(word, HEADING_BETTER_BREAKS))).toBe(expected);
   });
 
   test("body mode keeps its other breaks", () => {
-    expect(show(hyphenate("Hrafnafjarðarbyggð", TYPOGRAPHIC))).toBe(
+    expect(show(hyphenate("Hrafnafjarðarbyggð", BETTER_BREAKS))).toBe(
       "Hrafna-fjarðar-byggð"
     );
   });
@@ -761,13 +763,13 @@ describe("linked joints in heading mode", () => {
 
 describe("dictionary", () => {
   test("your own words win over the patterns and the bundled list", () => {
-    expect(show(hyphenate("vefslóðin", TYPOGRAPHIC))).not.toBe("vef-slóðin");
-    // The limits still apply: typographic keeps 3 letters after a break.
+    expect(show(hyphenate("vefslóðin", BETTER_BREAKS))).not.toBe("vef-slóðin");
+    // The limits still apply: better breaks keep 3 letters after a break.
     expect(
-      show(hyphenate("vefslóðin", { ...TYPOGRAPHIC, dictionary: ["vef=slóð-in"] }))
+      show(hyphenate("vefslóðin", { ...BETTER_BREAKS, dictionary: ["vef=slóð-in"] }))
     ).toBe("vef-slóðin");
     expect(
-      show(hyphenate("veðurstofa", { ...TYPOGRAPHIC, dictionary: ["veð-ur-stofa"] }))
+      show(hyphenate("veðurstofa", { ...BETTER_BREAKS, dictionary: ["veð-ur-stofa"] }))
     ).toBe("veður-stofa");
   });
 
@@ -781,7 +783,7 @@ describe("dictionary", () => {
     expect(
       show(
         hyphenate("vefslóðin", {
-          ...TYPOGRAPHIC,
+          ...BETTER_BREAKS,
           dictionary: ["vef=slóð-in"],
           exceptions: false,
         })
@@ -792,34 +794,36 @@ describe("dictionary", () => {
 });
 
 describe("foreign names", () => {
-  test("a capitalised word with c, q or w stays whole under typographic rules", () => {
+  test("a capitalised word with c, q or w stays whole with better breaks", () => {
     for (const word of ["Icelandair", "Hollywood", "Commodore", "Walbrook"]) {
-      expect(hyphenate(word, TYPOGRAPHIC)).toBe(word);
-      expect(hyphenate(word, { ...HEADING_TYPOGRAPHIC, minWordLength: 6 })).toBe(word);
+      expect(hyphenate(word, BETTER_BREAKS)).toBe(word);
+      expect(hyphenate(word, { ...HEADING_BETTER_BREAKS, minWordLength: 6 })).toBe(word);
     }
   });
 
   test("lowercase compounds, old z spelling and Ritreglur still break", () => {
-    expect(show(hyphenate("cashewhnetunum", TYPOGRAPHIC))).toContain("-");
-    expect(show(hyphenate("höfuðáherzlu", TYPOGRAPHIC))).toContain("-");
+    expect(show(hyphenate("cashewhnetunum", BETTER_BREAKS))).toContain("-");
+    expect(show(hyphenate("höfuðáherzlu", BETTER_BREAKS))).toContain("-");
     expect(show(hyphenate("Icelandair", RITREGLUR))).toContain("-");
     expect(hyphenate("Icelandair")).toBe("Icelandair");
   });
 
   test("a dictionary entry gives a foreign name its breaks", () => {
     expect(
-      show(hyphenate("Icelandair", { ...TYPOGRAPHIC, dictionary: ["ice=land=air"] }))
+      show(hyphenate("Icelandair", { ...BETTER_BREAKS, dictionary: ["ice=land=air"] }))
     ).toBe("Ice-land-air");
   });
 });
 
 describe("heading joints as a preference", () => {
-  test('"prefer" keeps the other typographic breaks, "only" the joints', () => {
-    expect(show(hyphenate("Hrafnafjarðarbyggð", HEADING_TYPOGRAPHIC))).toBe(
+  test('"prefer" keeps the other better breaks, "only" the joints', () => {
+    expect(show(hyphenate("Hrafnafjarðarbyggð", HEADING_BETTER_BREAKS))).toBe(
       "Hrafnafjarðar-byggð"
     );
     expect(
-      show(hyphenate("Hrafnafjarðarbyggð", { ...HEADING_TYPOGRAPHIC, joints: "prefer" }))
+      show(
+        hyphenate("Hrafnafjarðarbyggð", { ...HEADING_BETTER_BREAKS, joints: "prefer" })
+      )
     ).toBe("Hrafna-fjarðar-byggð");
   });
 });

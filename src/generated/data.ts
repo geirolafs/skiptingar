@@ -23159,7 +23159,7 @@ export const EXCEPTIONS: string = `# Icelandic hyphenation exceptions
 # Seed list: first pass by a native speaker on 2026-09-30.
 # Grow it one wrong break at a time.
 #
-# Typographic rules also drop a break before a linking syllable (ar, ur, is,
+# Better breaks also drop a break before a linking syllable (ar, ur, is,
 # ir) that a break follows, here as in the patterns, but never a = joint.
 
 # Joint marks. The patterns already break these words where they should; the

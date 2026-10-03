@@ -47,7 +47,7 @@ describe("handleSkiptingarRequest", () => {
             text: "Hraðbrautarframkvæmdir",
             options: { localeDetails: false },
           },
-          { op: "analyze", word: "vítamín", options: { rules: "ritreglur" } },
+          { op: "analyze", word: "vítamín", options: { betterBreaks: false } },
         ],
       })
     );
@@ -55,7 +55,7 @@ describe("handleSkiptingarRequest", () => {
     const { results } = (await response.json()) as { results: unknown[] };
     expect(results).toEqual([
       hyphenate("Hraðbrautarframkvæmdir"),
-      analyzeWord("vítamín", { rules: "ritreglur" }),
+      analyzeWord("vítamín", { betterBreaks: false }),
     ]);
   });
 
@@ -133,14 +133,14 @@ describe("handleSkiptingarRequest abuse limits", () => {
     // What `outputOptions` and `useAnalyzeWord` put on the wire.
     const text = 'Hann sagði "orð" um Hraðbrautarframkvæmdir, 1.000 kr.';
     const page = {
-      rules: "typographic",
+      betterBreaks: true,
       localeDetails: { singleLetter: true, lastWords: true, dashes: true },
     };
     const response = await run([
       job(text, page),
-      job(text, { rules: "ritreglur", localeDetails: false }),
+      job(text, { betterBreaks: false, localeDetails: false }),
       job(text),
-      { op: "analyze", word: "vítamín", options: { rules: "ritreglur" } },
+      { op: "analyze", word: "vítamín", options: { betterBreaks: false } },
       { op: "analyze", word: "vítamín" },
     ]);
     expect(response.status).toBe(200);
@@ -148,9 +148,9 @@ describe("handleSkiptingarRequest abuse limits", () => {
     expect(results).toEqual(
       runRemoteItems([
         { op: "process", text, options: page as never },
-        { op: "process", text, options: { rules: "ritreglur", localeDetails: false } },
+        { op: "process", text, options: { betterBreaks: false, localeDetails: false } },
         { op: "process", text },
-        { op: "analyze", word: "vítamín", options: { rules: "ritreglur" } },
+        { op: "analyze", word: "vítamín", options: { betterBreaks: false } },
         { op: "analyze", word: "vítamín" },
       ])
     );
@@ -161,7 +161,7 @@ describe("handleSkiptingarRequest abuse limits", () => {
       job("Hraðbrautarframkvæmdir", {
         mode: "heading",
         joints: "prefer",
-        rules: "ritreglur",
+        betterBreaks: false,
         minWordLength: 4,
         leftMin: 1,
         rightMin: 2,
@@ -229,7 +229,7 @@ describe("handleSkiptingarRequest abuse limits", () => {
     const bad = [
       job("orð", { nope: true }),
       job("orð", { localeDetails: { nope: true } }),
-      job("orð", JSON.parse('{"__proto__": {"rules": "ritreglur"}}')),
+      job("orð", JSON.parse('{"__proto__": {"betterBreaks": false}}')),
       job("orð", { constructor: 1 }),
       job("orð", { toString: 1 }),
       { op: "analyze", word: "orð", options: { localeDetails: false } },
@@ -237,6 +237,19 @@ describe("handleSkiptingarRequest abuse limits", () => {
     ];
     for (const item of bad) {
       expect((await run([item])).status).toBe(400);
+    }
+  });
+
+  test("rules is not an option any more, so it is a 400", async () => {
+    for (const rules of ["typographic", "ritreglur"]) {
+      for (const item of [
+        job("orð", { rules }),
+        { op: "analyze", word: "orð", options: { rules } },
+      ]) {
+        const response = await run([item]);
+        expect(response.status).toBe(400);
+        expect(await response.text()).toContain("unknown option");
+      }
     }
   });
 
@@ -252,7 +265,8 @@ describe("handleSkiptingarRequest abuse limits", () => {
     const bad = [
       { mode: "other" },
       { joints: "x" },
-      { rules: 1 },
+      { betterBreaks: "no" },
+      { betterBreaks: 0 },
       { minWordLength: 65 },
       { leftMin: -1 },
       { rightMin: 1.5 },

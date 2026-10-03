@@ -25,21 +25,21 @@ export type HyphenateOptions = {
    */
   joints?: "only" | "prefer";
   /**
-   * "typographic" (the default) is new and experimental, and may change. It
-   * drops legal breaks that read badly: body words need 6 letters or more, with
-   * at least 2 letters before a break and 3 after; the break before a linking
-   * syllable (`ar`, `ur`, `is`, `ir`) goes, so `sveitarstjórnarkosningum` keeps
-   * `sveitar·stjórnar·kosn·ingum`; and a capitalised foreign name with c, q or
-   * w (`Icelandair`) stays whole. Pass "ritreglur" for the official spelling
-   * rules alone: words of 4 letters or more, at least 1 letter before a break
-   * and 2 after.
+   * Better breaks keep only the legal breaks that read well. They are new and
+   * under development, and may change. Body words need 6 letters or more, with
+   * at least 2 letters before a break and 3 after (heading: 12, 3 and 4); the
+   * break before a linking syllable (`ar`, `ur`, `is`, `ir`) goes, so
+   * `sveitarstjórnarkosningum` keeps `sveitar·stjórnar·kosn·ingum`; and a
+   * capitalised foreign name with c, q or w (`Icelandair`) stays whole.
+   * Default `true`. `false` gives the Ritreglur minimums alone: words of 4
+   * letters or more, at least 1 letter before a break and 2 after.
    */
-  rules?: "typographic" | "ritreglur";
-  /** Words shorter than this many letters are left alone. Overrides the preset. */
+  betterBreaks?: boolean;
+  /** Words shorter than this many letters are left alone. Overrides `betterBreaks` and `mode`. */
   minWordLength?: number;
-  /** Fewest letters before a break. Overrides the preset. */
+  /** Fewest letters before a break. Overrides `betterBreaks` and `mode`. */
   leftMin?: number;
-  /** Fewest letters after a break. Overrides the preset. */
+  /** Fewest letters after a break. Overrides `betterBreaks` and `mode`. */
   rightMin?: number;
   /** Character inserted at each break. Default is the soft hyphen U+00AD. */
   hyphenChar?: string;
@@ -124,7 +124,7 @@ const MIN_NAME_STEM = 3;
  * of the first part (`stjórnar-`, `Akur-`, `ráðuneytis-`, `fyrir-`). The
  * patterns allow a break on both sides of one, and the break before it splits
  * the genitive from its stem: `stjórn-arvöld`, `fornald-arfrægð`. The
- * experimental typographic rules drop that break and keep the one after
+ * better breaks drop that break and keep the one after
  * (`stjórnar-völd`).
  */
 const LINKING_SYLLABLES: ReadonlySet<string> = new Set(["ar", "ur", "is", "ir"]);
@@ -199,11 +199,11 @@ function isAcronym(word: string, length: number): boolean {
 
 type Limits = { minWordLength: number; leftMin: number; rightMin: number };
 
-/** The rule set used when `rules` is not given: the new typographic rules. */
-const DEFAULT_RULES: NonNullable<HyphenateOptions["rules"]> = "typographic";
+/** Better breaks are on when `betterBreaks` is not given. */
+const DEFAULT_BETTER_BREAKS = true;
 
-const PRESETS = {
-  typographic: {
+const LIMITS = {
+  better: {
     body: { minWordLength: 6, leftMin: 2, rightMin: 3 },
     heading: { minWordLength: 12, leftMin: 3, rightMin: 4 },
   },
@@ -212,6 +212,15 @@ const PRESETS = {
     heading: { minWordLength: 4, leftMin: DATA_LEFT_MIN, rightMin: DATA_RIGHT_MIN },
   },
 } as const satisfies Record<string, Record<string, Limits>>;
+
+function useBetterBreaks(options: HyphenateOptions): boolean {
+  return options.betterBreaks ?? DEFAULT_BETTER_BREAKS;
+}
+
+/** The limits for the layer in use and the heading `mode`. */
+function limitsFor(betterBreaks: boolean, mode: "body" | "heading"): Limits {
+  return LIMITS[betterBreaks ? "better" : "ritreglur"][mode];
+}
 
 const LETTER_RUNS = /\p{L}+/gu;
 // Tokens with `@`, `_` or `#`, a letter glued to a digit (`mp3`, `abc2026`) or
@@ -226,12 +235,12 @@ function isSkippedToken(token: string): boolean {
 }
 
 function resolveLimits(options: HyphenateOptions): Limits {
-  const preset = PRESETS[options.rules ?? DEFAULT_RULES][options.mode ?? "body"];
+  const limits = limitsFor(useBetterBreaks(options), options.mode ?? "body");
   return {
-    minWordLength: options.minWordLength ?? preset.minWordLength,
+    minWordLength: options.minWordLength ?? limits.minWordLength,
     // A break needs at least one letter on each side.
-    leftMin: Math.max(1, options.leftMin ?? preset.leftMin),
-    rightMin: Math.max(1, options.rightMin ?? preset.rightMin),
+    leftMin: Math.max(1, options.leftMin ?? limits.leftMin),
+    rightMin: Math.max(1, options.rightMin ?? limits.rightMin),
   };
 }
 
@@ -283,23 +292,23 @@ function wordCandidates(
     bundled: useLists,
   });
   const fits = (position: number) => position >= leftMin && length - position >= rightMin;
-  const typographic = (options.rules ?? DEFAULT_RULES) === "typographic";
-  // A foreign name stays whole under typographic rules, unless a list gives
-  // it breaks.
+  const betterBreaks = useBetterBreaks(options);
+  // A foreign name stays whole with better breaks, unless a list gives it
+  // breaks.
   const capitalised = chars[0] !== lower[0];
-  if (typographic && !entry && capitalised && FOREIGN_LETTERS.test(lower)) {
+  if (betterBreaks && !entry && capitalised && FOREIGN_LETTERS.test(lower)) {
     return undefined;
   }
   if (entry) {
     // A listed word's hand-marked joints are never dropped.
-    const breaks = typographic
+    const breaks = betterBreaks
       ? dropLinkingBreaks([...lower], entry.breaks, entry.joints)
       : entry.breaks;
     return { breaks, joints: entry.joints, fits };
   }
 
   const patterns = patternBreaks(lower);
-  const breaks = typographic ? dropLinkingBreaks([...lower], patterns) : patterns;
+  const breaks = betterBreaks ? dropLinkingBreaks([...lower], patterns) : patterns;
   if (!(useLists && withJoints)) {
     return { breaks, joints: [], fits };
   }
@@ -349,7 +358,7 @@ export function hyphenateWord(word: string, options: HyphenateOptions = {}): num
  * `joints` is where heading mode would prefer to break. They come from a `=`
  * in a `dictionary` line. With `exceptions: true` they also come from the
  * exception list, the `NAME_ENDINGS` joint of a capitalised word and the break
- * after a linking syllable (`stjórnar|völd`, typographic rules). Otherwise
+ * after a linking syllable (`stjórnar|völd`, better breaks). Otherwise
  * `joints` is empty. It is always a subset of `breaks`.
  * The limits (`leftMin`, `rightMin`) apply to both.
  */
