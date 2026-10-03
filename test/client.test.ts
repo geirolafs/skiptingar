@@ -7,29 +7,28 @@ import {
   hyphenate,
   LINKING_SYLLABLES,
   processSegments,
-  RAG_LANGUAGE,
+  SETTLE_RAG_LANGUAGE,
   SHORT_WORDS,
 } from "../src";
 import {
   LINKING_SYLLABLES as CLIENT_LINKING_SYLLABLES,
+  NO_BREAK_HYPHEN as CLIENT_NO_BREAK_HYPHEN,
   NO_BREAK_SPACE as CLIENT_NO_BREAK_SPACE,
-  NON_BREAKING_HYPHEN as CLIENT_NON_BREAKING_HYPHEN,
-  RAG_LANGUAGE as CLIENT_RAG_LANGUAGE,
+  SETTLE_RAG_LANGUAGE as CLIENT_SETTLE_RAG_LANGUAGE,
   SHORT_WORDS as CLIENT_SHORT_WORDS,
   SOFT_HYPHEN as CLIENT_SOFT_HYPHEN,
-  cleanCopiedPlainText,
-  cleanCopiedText,
-  loadSkiptingar,
   useHyphenate,
   useSkiptingar,
 } from "../src/client";
 import {
   cleanClipboard,
+  cleanCopiedPlainText,
+  cleanCopiedText,
   cleanTextNodes,
   needsCleaning,
   shouldHandleCopy,
 } from "../src/client/clean";
-import { createLoader, loadedSkiptingar } from "../src/client/load";
+import { createLoader, loadedSkiptingar, loadSkiptingar } from "../src/client/load";
 import { applyOptionsKey, optionsKey } from "../src/client/options";
 import {
   configureSkiptingar,
@@ -40,6 +39,7 @@ import {
 } from "../src/client/remote";
 import { fillPending } from "../src/client/use-hyphenate";
 import type { RemoteItem } from "../src/server";
+import { experimental } from "./experimental";
 
 /** `1990-2000` as the dashes rule sets it: an en dash and a word joiner after it. */
 function localeDetailsDash(): string {
@@ -188,7 +188,7 @@ describe("loadSkiptingar", () => {
     expect(second).toBe(first);
     const core = await first;
     expect(typeof core.hyphenate).toBe("function");
-    expect(typeof core.localeDetailsSegments).toBe("function");
+    expect(typeof core.processSegments).toBe("function");
   });
 
   test("exports the hook", () => {
@@ -205,14 +205,14 @@ describe("client constants", () => {
   test("re-exports the three invisible characters", () => {
     expect(CLIENT_SOFT_HYPHEN).toBe(SHY);
     expect(CLIENT_NO_BREAK_SPACE).toBe(NBSP);
-    expect(CLIENT_NON_BREAKING_HYPHEN).toBe(NBH);
+    expect(CLIENT_NO_BREAK_HYPHEN).toBe(NBH);
   });
 
   test("re-exports the Icelandic word lists for settle-rag, the same objects as the core", () => {
-    expect(CLIENT_RAG_LANGUAGE).toBe(RAG_LANGUAGE);
+    expect(CLIENT_SETTLE_RAG_LANGUAGE).toBe(SETTLE_RAG_LANGUAGE);
     expect(CLIENT_SHORT_WORDS).toBe(SHORT_WORDS);
     expect(CLIENT_LINKING_SYLLABLES).toBe(LINKING_SYLLABLES);
-    expect(CLIENT_RAG_LANGUAGE.locale).toBe("is");
+    expect(CLIENT_SETTLE_RAG_LANGUAGE.locale).toBe("is");
   });
 });
 
@@ -405,7 +405,7 @@ describe("hook options", () => {
       `"${word}"`,
       optionsKey({ localeDetails: false, mode: "heading" })
     );
-    expect(out).toBe(`"${hyphenate(word, { mode: "heading" })}"`);
+    expect(out).toBe(`"${hyphenate(word, experimental({ mode: "heading" }))}"`);
   });
 });
 

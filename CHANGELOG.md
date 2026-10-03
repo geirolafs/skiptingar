@@ -8,6 +8,44 @@ switches, like `localeDetails`. `rules: "typographic"` (the default) is
 applies to `hyphenate()` and the other functions, `<Hyphenate>`, the client
 hooks and the endpoint request, which now refuses `rules` with a 400.
 
+More breaking changes in this release. The old names are gone, with no
+aliases. A client and a server must both be on 0.4.0, because the endpoint
+refuses the old rule names.
+
+- `RAG_LANGUAGE` is now `SETTLE_RAG_LANGUAGE`.
+- `NON_BREAKING_HYPHEN` is now `NO_BREAK_HYPHEN`, the name the docs use.
+- The `localeDetails` rule `prefixes` is now `abbreviations`. It binds an
+  abbreviation to its number (`nr. 5`, `kl. 14.30`).
+- The `localeDetails` rule `numbers` is now `phoneNumbers`. It keeps kennitölur
+  and phone numbers on one line.
+- The type `HyphenateResult` is now `HyphenateAllResult`. It is what
+  `useHyphenateAll` returns.
+
+These names are no longer exported. They are internal now, and the README had
+no section for them. The core that `useSkiptingar()` returns loses them too.
+
+- `skiptingar`: `hyphenateWord`, `localeDetailsSegments`, `resolveLocaleDetails`,
+  `parseExceptions`, `ExceptionEntry`, `EXCEPTION_COUNT`, `NUMBER_UNITS`,
+  `NUMBER_PREFIXES`, `SPACED_ABBREVIATIONS`, `NAME_ENDINGS`, `ACRONYM_LENGTH`,
+  `runRemoteItems`, `RemoteItem`, `RemoteResult` and `RemoteOptions`
+- `skiptingar/react`: `transformChildren`, `TransformOptions` and `INLINE_TAGS`
+- `skiptingar/client`: `loadSkiptingar`, `loadedSkiptingar`, `cleanCopiedText`
+  and `cleanCopiedPlainText`
+
+Four options are not public any more: `mode`, `joints`, `exceptions` and
+`skipAcronyms`. They are still in the code. They are gone from the types of
+`hyphenate()`, `<Hyphenate>`, the hooks and the endpoint request, and the
+endpoint refuses them with a 400, as an unknown option.
+
+Also in this release:
+
+- `analyzeWord` still returns `{ breaks, joints }`. Its docs now say joints
+  come from a `=` in a `dictionary` line.
+- The hyphenation code reads its linking syllables from `LINKING_SYLLABLES`,
+  so there is one list and the two cannot differ.
+- README and the endpoint error message say "items", not "jobs", and the
+  README says "segments", not "pieces", for `processSegments`.
+
 ## 0.3.0 (2026-10-03)
 
 Breaking: `localeDetails()` no longer takes `preset`. It only turned on

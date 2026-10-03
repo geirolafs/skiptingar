@@ -36,7 +36,7 @@ function handleCopy(event: ClipboardEvent): void {
 
 /**
  * Renders nothing. While mounted, copying text that holds soft hyphens,
- * no-break spaces or non-breaking hyphens puts clean text on the clipboard: no
+ * no-break spaces or no-break hyphens puts clean text on the clipboard: no
  * hidden hyphens, normal spaces and plain hyphens. Other copies are left to the browser.
  */
 export function CleanCopy(): null {

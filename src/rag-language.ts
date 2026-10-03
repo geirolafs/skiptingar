@@ -32,10 +32,10 @@ export const LINKING_SYLLABLES = ["ar", "ur", "is", "ir"] as const;
 
 /**
  * Icelandic for Settle Rag: pass it as `language` in its options
- * (`{ language: RAG_LANGUAGE }`). A plain object, so this package needs
+ * (`{ language: SETTLE_RAG_LANGUAGE }`). A plain object, so this package needs
  * nothing from Settle Rag.
  */
-export const RAG_LANGUAGE = {
+export const SETTLE_RAG_LANGUAGE = {
   shortWords: SHORT_WORDS,
   linkingSyllables: LINKING_SYLLABLES,
   locale: "is",

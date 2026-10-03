@@ -2,11 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { buildDataModule, GENERATED_PATH, renderDataModule } from "../scripts/build-data";
-import { EXCEPTION_COUNT, PATTERN_COUNT } from "../src";
+import { PATTERN_COUNT } from "../src";
 import { parseExceptions } from "../src/exceptions";
 import {
   DATA_LEFT_MIN,
   DATA_RIGHT_MIN,
+  EXCEPTION_COUNT,
   EXCEPTIONS,
   PATTERNS,
 } from "../src/generated/data";

@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { LOCALE_RULES, type LocaleDetailsOptions, localeDetails } from "../src";
 import {
-  localeDetails,
   localeDetailsSegments,
+  NUMBER_ABBREVIATIONS,
   NUMBER_UNITS,
   SPACED_ABBREVIATIONS,
-} from "../src";
-import { NUMBER_PREFIXES } from "../src/locale-details";
+} from "../src/locale-details";
 
 const NB = " ";
 
@@ -173,7 +173,7 @@ describe("abbreviation and number", () => {
       "u.þ.b.",
       "ca.",
     ]) {
-      expect(NUMBER_PREFIXES).toContain(prefix);
+      expect(NUMBER_ABBREVIATIONS).toContain(prefix);
     }
   });
 });
@@ -382,19 +382,19 @@ describe("rule 8: dashes", () => {
     expect(localeDetails(input, { dashes: true })).toBe(input);
   });
 
-  test("a phone number and a kennitala keep their hyphen with the numbers rule off", () => {
+  test("a phone number and a kennitala keep their hyphen with the phoneNumbers rule off", () => {
     for (const input of ["Sími 555-1234", "Kt. 010190-2939"]) {
-      expect(localeDetails(input, { dashes: true, numbers: false })).not.toContain(
+      expect(localeDetails(input, { dashes: true, phoneNumbers: false })).not.toContain(
         "–\u2060"
       );
     }
   });
 
   test("never turns a phone number or kennitala hyphen into an en dash", () => {
-    // With the numbers rule off they keep the plain hyphen. With it on (the
+    // With the phoneNumbers rule off they keep the plain hyphen. With it on (the
     // default) they get U+2011, which is not an en dash either.
     for (const input of ["Sími 555-1234", "Kennitala 010101-2939"]) {
-      expect(localeDetails(input, { dashes: true, numbers: false })).toBe(input);
+      expect(localeDetails(input, { dashes: true, phoneNumbers: false })).toBe(input);
       expect(localeDetails(input, { dashes: true })).toBe(input.replace("-", "\u2011"));
       expect(localeDetails(input, { dashes: true })).not.toContain("–\u2060");
     }
@@ -416,7 +416,7 @@ describe("rule 8: dashes", () => {
   });
 });
 
-describe("numbers: kennitala and phone numbers stay on one line", () => {
+describe("phoneNumbers: kennitala and phone numbers stay on one line", () => {
   const NBH = "\u2011";
 
   test.each([
@@ -468,7 +468,7 @@ describe("numbers: kennitala and phone numbers stay on one line", () => {
   });
 
   test("can be turned off", () => {
-    expect(localeDetails("sími 555-1234", { numbers: false })).toBe("sími 555-1234");
+    expect(localeDetails("sími 555-1234", { phoneNumbers: false })).toBe("sími 555-1234");
   });
 
   test("a range becomes an en dash while a phone number keeps its hyphen", () => {
@@ -487,11 +487,14 @@ describe("review regressions", () => {
     "１２555-1234",
     "sími 555-1234b",
     "x+354 555 1234",
-  ])("numbers leaves %p alone (letters or digits of any script next to it)", input => {
-    expect(localeDetails(input)).toBe(input);
-  });
+  ])(
+    "phoneNumbers leaves %p alone (letters or digits of any script next to it)",
+    input => {
+      expect(localeDetails(input)).toBe(input);
+    }
+  );
 
-  test("numbers still binds a number that stands alone next to punctuation", () => {
+  test("phoneNumbers still binds a number that stands alone next to punctuation", () => {
     expect(localeDetails("(555-1234)")).toBe(`(555${NBH}1234)`);
     expect(localeDetails("sími: 555-1234.")).toBe(`sími: 555${NBH}1234.`);
   });
@@ -810,11 +813,35 @@ describe("every rule can be turned off", () => {
     ["units", "Verð 1.000 kr."],
     ["dates", "Lokað í sept. 2027"],
     ["ordinals", "Hún lenti í 1. sæti"],
-    ["prefixes", "Sjá bls. 12"],
+    ["abbreviations", "Sjá bls. 12"],
     ["titles", "Spurðu dr. Jón"],
   ] as const)("%s: false leaves %p as typed", (option, input) => {
     expect(localeDetails(input)).not.toBe(input);
     expect(localeDetails(input, { [option]: false })).toBe(input);
+  });
+});
+
+describe("rule names", () => {
+  test("LOCALE_RULES lists the options the README names", () => {
+    const names: readonly (keyof LocaleDetailsOptions)[] = [
+      "abbreviations",
+      "dashes",
+      "dates",
+      "lastWords",
+      "ordinals",
+      "phoneNumbers",
+      "quotes",
+      "singleLetter",
+      "titles",
+      "units",
+    ];
+    expect([...LOCALE_RULES].sort()).toEqual([...names]);
+  });
+
+  test("the old names prefixes and numbers do nothing", () => {
+    const input = "Sjá bls. 12, sími 555-1234";
+    const old = { prefixes: false, numbers: false } as unknown as LocaleDetailsOptions;
+    expect(localeDetails(input, old)).toBe(localeDetails(input));
   });
 });
 

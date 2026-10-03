@@ -3,7 +3,9 @@ import type { ReactElement, ReactNode } from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { hyphenate, processSegments } from "../src";
-import { Hyphenate, LocaleDetails, transformChildren } from "../src/react";
+import { Hyphenate, LocaleDetails } from "../src/react";
+import { transformChildren } from "../src/react/transform";
+import { experimental } from "./experimental";
 
 const SHY = "­";
 const NB = "\u00A0";
@@ -207,11 +209,11 @@ describe("<Hyphenate>", () => {
 
   test("heading mode gives the same breaks as hyphenate()", () => {
     const html = render(
-      <Hyphenate mode="heading">
+      <Hyphenate {...experimental({ mode: "heading" })}>
         <h1>{HEADING_WORD}</h1>
       </Hyphenate>
     );
-    const expected = hyphenate(HEADING_WORD, { mode: "heading" });
+    const expected = hyphenate(HEADING_WORD, experimental({ mode: "heading" }));
     expect(expected).toContain(SHY);
     expect(html).toBe(`<h1>${expected}</h1>`);
   });

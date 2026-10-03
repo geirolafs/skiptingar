@@ -14,7 +14,7 @@ import {
 import { useSkiptingar } from "./use-skiptingar";
 
 /** The texts processed, or as given until they are; `ready` once all are. */
-export type HyphenateResult = { texts: string[]; ready: boolean };
+export type HyphenateAllResult = { texts: string[]; ready: boolean };
 
 const serverVersion = () => 0;
 
@@ -43,7 +43,7 @@ function useWorker() {
  */
 export function useHyphenateAll(
   items: readonly { text: string; options?: UseHyphenateOptions }[]
-): HyphenateResult {
+): HyphenateAllResult {
   const { version, remote, core } = useWorker();
   // The work as one string, so equal work in a new array is not new work.
   const serial = JSON.stringify(

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { HyphenateOptions, LocaleDetailsOptions } from "../index";
 // From the module, not the `.` entry (see transform.ts).
-import { resolveLocaleDetails } from "../process";
+import { resolveLocaleDetails } from "../resolve-locale-details";
 import { transformChildren } from "./transform";
 import { toFragment } from "./walk";
 

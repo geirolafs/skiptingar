@@ -128,8 +128,8 @@ badly:
 | Number and unit | `1.000 kr.`, `5 km`, `20 °C` | `units`, on |
 | Day, month and year | `30. september`, `sept. 2027`, `ág. 2026` | `dates`, on |
 | Ordinal | `1. sæti`, `3. grein` | `ordinals`, on |
-| Abbreviation and number | `nr. 5`, `bls. 12`, `kl. 14.30`, `kt. 011390-2939` | `prefixes`, on |
-| Kennitala and phone | `011390-2939`, `588-5522`, `+354 588 5522` never split | `numbers`, on |
+| Abbreviation and number | `nr. 5`, `bls. 12`, `kl. 14.30`, `kt. 011390-2939` | `abbreviations`, on |
+| Kennitala and phone | `011390-2939`, `588-5522`, `+354 588 5522` never split | `phoneNumbers`, on |
 | Title and initial | `dr. Jón`, `Jón G. Sigurðsson` | `titles`, on |
 | Quotes | `"orð"` → `„orð“`; a paired `'orð'` → `‚orð‘`, the mark for a word's meaning (Ritreglur §28.2) | `quotes`, on |
 | Dashes | `1990-2000` → `1990–2000`, `18.-21.`, `kl. 14.30-16.00`; a spaced dash stays on its line | `dashes`, on |
@@ -203,9 +203,9 @@ character longer. Every rule in the table above has an option of its own.
 
 The invisible characters have names, so you do not have to paste them into
 source code: `SOFT_HYPHEN` (U+00AD), `NO_BREAK_SPACE` (U+00A0) and
-`NON_BREAKING_HYPHEN` (U+2011).
+`NO_BREAK_HYPHEN` (U+2011).
 
-#### Text in pieces: `processSegments`
+#### Text in segments: `processSegments`
 
 ```ts
 import { processSegments } from "skiptingar";
@@ -214,17 +214,15 @@ processSegments(["Hraðbrautar", "framkvæmdir"], { hyphenate: {}, localeDetails
 // ["Hrað­brautar­", "fram­kvæmdir"]
 ```
 
-This is what `<Hyphenate>` runs on each run of text. Give it the text pieces
-of one run (for example the text nodes of a paragraph split by `<em>`). It puts
-each piece in NFC, removes soft hyphens, adds the locale details across the
-pieces, then hyphenates the joined text and cuts the breaks back into the
-pieces. So a word split by markup breaks like the whole word, and a web address
-split by markup is still found. A break on the border between two pieces goes at the end of the
-earlier piece. It returns one string for each piece. Pass `false`, or leave out
+This is what `<Hyphenate>` runs on each run of text. Give it the segments of
+one run (for example the text nodes of a paragraph split by `<em>`). It puts
+each segment in NFC, removes soft hyphens, adds the locale details across the
+segments, then hyphenates the joined text and cuts the breaks back into the
+segments. So a word split by markup breaks like the whole word, and a web address
+split by markup is still found. A break on the border between two segments goes at the end of the
+earlier segment. It returns one string for each segment. Pass `false`, or leave out
 `hyphenate` or `localeDetails`, to skip that step: unlike the components, it
 adds the locale details only when you give it `localeDetails`.
-`resolveLocaleDetails(true | false | options)` turns the `localeDetails` prop
-of the components into these options; left out, it is on (`{}`).
 `breakOffsets(text, options)` is the lower level: the offsets where
 `hyphenate()` would insert a break.
 
@@ -237,8 +235,7 @@ analyzeWord("hraðbraut");
 // { breaks: [4], joints: [] }
 ```
 
-`breaks` is what `hyphenateWord()` returns: every break the word allows, as
-"after N letters". `joints` are the compound joints the word is known to have,
+`breaks` is every break the word allows, as "after N letters". `joints` are the compound joints the word is known to have,
 which the patterns do not give: the `=` marks of a word in your `dictionary`
 (`{ dictionary: ["hrað=braut"] }` gives `joints: [4]`). It is always a subset
 of `breaks`. Both obey `leftMin` and `rightMin`.
@@ -296,7 +293,7 @@ function Caption({ text }: { text: string }) {
 
 Use this for text that exists only in the browser, like something a user
 types. It adds the locale details too, unless you pass `localeDetails: false`. The
-patterns load lazily the first time: <!-- size:patterns -->49.7 kB<!-- /size --> brotli for the core and its
+patterns load lazily the first time: <!-- size:patterns -->49.6 kB<!-- /size --> brotli for the core and its
 patterns, while the client entry itself is <!-- size:client -->3.1 kB<!-- /size --> brotli. Until then the hook
 returns the text as it is, and so it does if the chunk fails to load. The next
 component that mounts tries the load again. A component that mounts after the
@@ -307,7 +304,7 @@ server, do on the server.
 
 A page that has a server can skip the patterns: mount the handler on a POST
 route and point the client at it once. The browser then sends the text and
-gets it back hyphenated, for <!-- size:endpoint -->2.2 kB<!-- /size --> brotli.
+gets it back hyphenated, for <!-- size:endpoint -->2.3 kB<!-- /size --> brotli.
 
 ```ts
 // app/api/skiptingar/route.ts
@@ -326,7 +323,7 @@ it is processed yet) and `useAnalyzeWord` then ask the endpoint. Requests in
 one tick go out as one, answers are cached, and if the endpoint fails the
 hooks load the patterns instead. The handler uses the standard `Request` and
 `Response`, so it also runs in Bun, Deno or a worker. It limits a request to
-200 jobs and 50 000 characters and a word to 200 characters (web addresses
+200 items and 50 000 characters and a word to 200 characters (web addresses
 excepted). It refuses unknown options, a large body (413) and a request that
 is not `application/json` (415). The lines of a `dictionary` count as
 characters.
@@ -345,7 +342,7 @@ function Breaks({ word }: { word: string }) {
 ```
 
 The client entry also re-exports `SOFT_HYPHEN`, `NO_BREAK_SPACE` and
-`NON_BREAKING_HYPHEN`, so a client component can name them without importing
+`NO_BREAK_HYPHEN`, so a client component can name them without importing
 the core and its pattern data.
 
 #### Clean copied text: `<CleanCopy />`
@@ -365,10 +362,10 @@ plain objects:
   `að` and `með`.
 - `LINKING_SYLLABLES`: the syllables that link a compound's parts, like
   `sveitar·stjórnar`.
-- `RAG_LANGUAGE`: both lists and the locale, ready to pass as `language`.
+- `SETTLE_RAG_LANGUAGE`: both lists and the locale, ready to pass as `language`.
 
 ```ts
-RAG_LANGUAGE;
+SETTLE_RAG_LANGUAGE;
 // { shortWords: SHORT_WORDS, linkingSyllables: LINKING_SYLLABLES, locale: "is" }
 ```
 
@@ -377,7 +374,7 @@ data stays out of the browser. On the server, import them from `skiptingar`.
 
 ```tsx
 "use client";
-import { RAG_LANGUAGE } from "skiptingar/client";
+import { SETTLE_RAG_LANGUAGE } from "skiptingar/client";
 ```
 
 ## What it costs a browser
@@ -385,10 +382,10 @@ import { RAG_LANGUAGE } from "skiptingar/client";
 | Job | Setup | Brotli |
 | --- | --- | --- |
 | Hyphenate Icelandic | Skiptingar on the server | 0 kB |
-| | Skiptingar via your server (`useHyphenate` with an endpoint) | <!-- size:endpoint -->2.2 kB<!-- /size --> |
+| | Skiptingar via your server (`useHyphenate` with an endpoint) | <!-- size:endpoint -->2.3 kB<!-- /size --> |
 | | [hyphen](https://www.npmjs.com/package/hyphen)/is, the old TeX patterns | 12.9 kB |
 | | [Hyphenopoly](https://mnater.github.io/Hyphenopoly/), the old TeX patterns as WebAssembly | 14.8 kB |
-| | Skiptingar in the browser, for a page with no server to ask | <!-- size:browser -->52 kB<!-- /size --> |
+| | Skiptingar in the browser, for a page with no server to ask | <!-- size:browser -->51.8 kB<!-- /size --> |
 | Locale details | Skiptingar on the server | 0 kB |
 | | [Typeset.js](https://typeset.lllllllllllllllll.com/) in the browser, English rules | 29.7 kB |
 

@@ -37,4 +37,6 @@ workflow sets both up.
 
 The workflow stops if the tag version differs from `package.json`. Watch the
 run in the Actions tab. When it is green, the version is on npm with a
-provenance badge.
+provenance badge, and a GitHub Release for the tag holds that version's
+`CHANGELOG.md` section. So the top heading must be `## X.Y.Z (date)`, or the
+release step fails after the publish.

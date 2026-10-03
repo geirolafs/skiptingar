@@ -13,8 +13,8 @@
  */
 import {
   insertAcrossSegments,
+  NO_BREAK_HYPHEN,
   NO_BREAK_SPACE,
-  NON_BREAKING_HYPHEN,
   WORD_JOINER,
 } from "./characters";
 import { findProtectedMask, isProtected, type Mask } from "./url";
@@ -50,7 +50,7 @@ export type LocaleDetailsOptions = {
    * `kl. 14.30`, `kt. 450190-2939`), and inside older spaced abbreviations
    * (`t. d.`). Default true.
    */
-  prefixes?: boolean;
+  abbreviations?: boolean;
   /**
    * No-break space after a title or an initial before a name: `dr. Jón`,
    * `Jón G. Sigurðsson`. Default true.
@@ -58,10 +58,10 @@ export type LocaleDetailsOptions = {
   titles?: boolean;
   /**
    * Keep kennitala and phone numbers on one line: `010190-2939`, `555-1234`,
-   * `555 1234`, `+354 555 1234`. Hyphens become U+2011 NON-BREAKING HYPHEN and
+   * `555 1234`, `+354 555 1234`. Hyphens become U+2011 NO-BREAK HYPHEN and
    * spaces become no-break spaces. Default true.
    */
-  numbers?: boolean;
+  phoneNumbers?: boolean;
 };
 
 /** Units and currencies that stay attached to the number before them. */
@@ -94,11 +94,11 @@ export const NUMBER_UNITS: readonly string[] = [
 ];
 
 /**
- * Abbreviation prefixes that stay attached to the number after them:
+ * Abbreviations that stay attached to the number after them:
  * `nr. 5`, `bls. 12`, `kl. 14.30`, `gr. 3`, `ca. 20`. The no-break space keeps
  * the pair together on one line. Matching is case-insensitive.
  */
-export const NUMBER_PREFIXES: readonly string[] = [
+export const NUMBER_ABBREVIATIONS: readonly string[] = [
   "nr.",
   "bls.",
   "kl.",
@@ -201,8 +201,8 @@ const MONTH_YEAR = /* @__PURE__ */ new RegExp(
   "giu"
 );
 // Preceded by the start, whitespace, "(" or an opening quote mark.
-const NUMBER_PREFIX = /* @__PURE__ */ new RegExp(
-  `(?<![^\\s("'„‚‘“])(?:${alternation(NUMBER_PREFIXES)})${SP}(?=\\d)`,
+const ABBREVIATION_NUMBER = /* @__PURE__ */ new RegExp(
+  `(?<![^\\s("'„‚‘“])(?:${alternation(NUMBER_ABBREVIATIONS)})${SP}(?=\\d)`,
   "giu"
 );
 // Older spaced forms such as "t. d." (see SPACED_ABBREVIATIONS).
@@ -453,11 +453,11 @@ function resolveOptions(options: LocaleDetailsOptions): ResolvedOptions {
     singleLetter: options.singleLetter ?? false,
     lastWords: options.lastWords ?? false,
     dashes: options.dashes ?? true,
-    numbers: options.numbers ?? true,
+    phoneNumbers: options.phoneNumbers ?? true,
     units: options.units ?? true,
     dates: options.dates ?? true,
     ordinals: options.ordinals ?? true,
-    prefixes: options.prefixes ?? true,
+    abbreviations: options.abbreviations ?? true,
     titles: options.titles ?? true,
   };
 }
@@ -482,11 +482,11 @@ function localeDetailsText(text: string, options: ResolvedOptions): string {
   }
   const bound: [boolean, RegExp][] = [
     [options.units, NUMBER_UNIT],
-    [options.prefixes, NUMBER_PREFIX],
+    [options.abbreviations, ABBREVIATION_NUMBER],
     [options.ordinals, ORDINAL],
     [options.dates, MONTH_YEAR],
     [options.dates, DAY_MONTH],
-    [options.prefixes, SPACED_ABBREVIATION],
+    [options.abbreviations, SPACED_ABBREVIATION],
     [options.titles, TITLE],
     [options.titles, INITIAL],
   ];
@@ -495,9 +495,9 @@ function localeDetailsText(text: string, options: ResolvedOptions): string {
       out = bindSpaces(out, pattern, mask);
     }
   }
-  if (options.numbers) {
+  if (options.phoneNumbers) {
     out = replaceMatches(out, STANDALONE_NUMBER, mask, match =>
-      match.replace(/ /g, NO_BREAK_SPACE).replace(/-/g, NON_BREAKING_HYPHEN)
+      match.replace(/ /g, NO_BREAK_SPACE).replace(/-/g, NO_BREAK_HYPHEN)
     );
   }
   if (options.singleLetter) {

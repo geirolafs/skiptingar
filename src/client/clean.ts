@@ -1,14 +1,14 @@
 const SOFT_HYPHEN = /\u00AD/g;
 const NO_BREAK_SPACE = /\u00A0/g;
-const NON_BREAKING_HYPHEN = /\u2011/g;
+const NO_BREAK_HYPHEN = /\u2011/g;
 const WORD_JOINER = /\u2060/g;
 const SOFT_HYPHEN_ENTITY = /&(?:shy|#173|#xad);/gi;
 const NO_BREAK_SPACE_ENTITY = /&(?:nbsp|#160|#xa0);/gi;
-const NON_BREAKING_HYPHEN_ENTITY = /&(?:#8209|#x2011);/gi;
+const NO_BREAK_HYPHEN_ENTITY = /&(?:#8209|#x2011);/gi;
 
 /**
  * Plain text clean-up: removes soft hyphens and word joiners, turns no-break
- * spaces into normal spaces and non-breaking hyphens (U+2011, used in phone
+ * spaces into normal spaces and no-break hyphens (U+2011, used in phone
  * numbers and kennitala) into plain hyphens. Use this for `text/plain`, where a typed
  * "&nbsp;" is real text.
  */
@@ -16,7 +16,7 @@ export function cleanCopiedPlainText(text: string): string {
   return text
     .replace(SOFT_HYPHEN, "")
     .replace(NO_BREAK_SPACE, " ")
-    .replace(NON_BREAKING_HYPHEN, "-")
+    .replace(NO_BREAK_HYPHEN, "-")
     .replace(WORD_JOINER, "");
 }
 
@@ -29,7 +29,7 @@ export function cleanCopiedText(text: string): string {
   return cleanCopiedPlainText(text)
     .replace(SOFT_HYPHEN_ENTITY, "")
     .replace(NO_BREAK_SPACE_ENTITY, " ")
-    .replace(NON_BREAKING_HYPHEN_ENTITY, "-");
+    .replace(NO_BREAK_HYPHEN_ENTITY, "-");
 }
 
 /** The part of a DOM text node that clean-up needs. */
@@ -48,7 +48,7 @@ export function cleanTextNodes(nodes: Iterable<TextNodeLike>): void {
 }
 
 /**
- * True when the text has a soft hyphen, a no-break space, a non-breaking
+ * True when the text has a soft hyphen, a no-break space, a no-break
  * hyphen or a word joiner (the invisible character the `dashes` rule puts
  * after an en dash).
  */
@@ -90,7 +90,7 @@ export type CleanClipboard = { text: string; html: string };
 
 /**
  * Decides what to put on the clipboard. Returns `null` when the selection has
- * no soft hyphen, no-break space, non-breaking hyphen or word joiner, so the
+ * no soft hyphen, no-break space, no-break hyphen or word joiner, so the
  * browser can copy it as it is.
  * `getCleanHtml` must return HTML that is already clean. It is only called
  * when cleaning is needed.

@@ -1,4 +1,6 @@
 import type { HyphenateOptions, LocaleDetailsOptions } from "../index";
+// From its own module: the `../index` core loads lazily, and this file must not pull it in.
+import { resolveLocaleDetails } from "../resolve-locale-details";
 
 export type UseHyphenateOptions = HyphenateOptions & {
   /**
@@ -9,8 +11,8 @@ export type UseHyphenateOptions = HyphenateOptions & {
   localeDetails?: boolean | LocaleDetailsOptions;
 };
 
-/** The two core functions the hook needs. A type only: the core loads lazily. */
-type Core = Pick<typeof import("../index"), "processSegments" | "resolveLocaleDetails">;
+/** The core function the hook needs. A type only: the core loads lazily. */
+type Core = Pick<typeof import("../index"), "processSegments">;
 
 /** The same value with every object's keys sorted and `undefined` values dropped. */
 function sortKeys(value: unknown): unknown {
@@ -55,7 +57,7 @@ export function optionsKey(options: object | undefined): string {
 export function applyOptionsKey(core: Core, text: string, key: string): string {
   const { localeDetails, ...hyphenateOptions } = JSON.parse(key) as UseHyphenateOptions;
   const [processed] = core.processSegments([text], {
-    localeDetails: core.resolveLocaleDetails(localeDetails),
+    localeDetails: resolveLocaleDetails(localeDetails),
     hyphenate: hyphenateOptions,
   });
   return processed ?? text;

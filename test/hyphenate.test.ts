@@ -1,15 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import {
-  ACRONYM_LENGTH,
-  analyzeWord,
-  breakOffsets,
-  hyphenate,
-  hyphenateWord,
-  NAME_ENDINGS,
-  NO_BREAK_SPACE,
-  NON_BREAKING_HYPHEN,
-  SOFT_HYPHEN,
-} from "../src";
+import { NO_BREAK_HYPHEN, NO_BREAK_SPACE, SOFT_HYPHEN } from "../src";
+import { ACRONYM_LENGTH, hyphenateWord, NAME_ENDINGS } from "../src/hyphenate";
+// These take the experimental options too (see ./experimental).
+import { analyzeWord, breakOffsets, hyphenate } from "./experimental";
 
 const SHY = "­";
 const RITREGLUR = { betterBreaks: false } as const;
@@ -684,7 +677,7 @@ describe("character constants", () => {
   test("are the invisible characters", () => {
     expect(SOFT_HYPHEN).toBe("\u00AD");
     expect(NO_BREAK_SPACE).toBe("\u00A0");
-    expect(NON_BREAKING_HYPHEN).toBe("\u2011");
+    expect(NO_BREAK_HYPHEN).toBe("\u2011");
   });
 });
 

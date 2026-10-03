@@ -14,7 +14,8 @@
 import { analyzeWord, type HyphenateOptions } from "./hyphenate";
 import type { LocaleDetailsOptions } from "./locale-details";
 import { parseExceptions } from "./parse-exceptions";
-import { processSegments, resolveLocaleDetails } from "./process";
+import { processSegments } from "./process";
+import { resolveLocaleDetails } from "./resolve-locale-details";
 import { findProtectedMask } from "./url";
 
 /**
@@ -25,16 +26,16 @@ export type RemoteOptions = HyphenateOptions & {
   localeDetails?: boolean | LocaleDetailsOptions;
 };
 
-/** One job in a request. */
+/** One item in a request. */
 export type RemoteItem =
   | { op: "process"; text: string; options?: RemoteOptions }
   | { op: "analyze"; word: string; options?: HyphenateOptions };
 
-/** The answer to each job, in order. */
+/** The answer to each item, in order. */
 export type RemoteResult = string | { breaks: number[]; joints: number[] };
 
 export type HandlerLimits = {
-  /** The most jobs in one request. Default 200. */
+  /** The most items in one request. Default 200. */
   maxItems?: number;
   /** The most characters across a request's texts and words. Default 50 000. */
   maxCharacters?: number;
@@ -46,7 +47,7 @@ export type HandlerLimits = {
   maxWordLength?: number;
 };
 
-/** Runs the jobs of one request. Throws on a malformed one. */
+/** Runs the items of one request. Throws on a malformed one. */
 export function runRemoteItems(items: readonly RemoteItem[]): RemoteResult[] {
   return items.map(item => {
     if (item.op === "process") {
@@ -63,10 +64,6 @@ export function runRemoteItems(items: readonly RemoteItem[]): RemoteResult[] {
 
 type Check = (value: unknown) => boolean;
 
-const oneOf =
-  (...allowed: readonly string[]): Check =>
-  value =>
-    typeof value === "string" && allowed.includes(value);
 const isBoolean: Check = value => typeof value === "boolean";
 /** A small whole number: a letter count, never a size to allocate. */
 const isSmallInteger: Check = value =>
@@ -116,16 +113,12 @@ const isDictionary: Check = value => {
  * handler does not know is refused, never passed through.
  */
 const HYPHENATE_CHECKS = {
-  mode: oneOf("body", "heading"),
-  joints: oneOf("only", "prefer"),
   betterBreaks: isBoolean,
   minWordLength: isSmallInteger,
   leftMin: isSmallInteger,
   rightMin: isSmallInteger,
   hyphenChar: isHyphenChar,
-  exceptions: isBoolean,
   dictionary: isDictionary,
-  skipAcronyms: isBoolean,
 } satisfies Record<keyof HyphenateOptions, Check>;
 
 const LOCALE_DETAILS_CHECKS = {
@@ -136,9 +129,9 @@ const LOCALE_DETAILS_CHECKS = {
   units: isBoolean,
   dates: isBoolean,
   ordinals: isBoolean,
-  prefixes: isBoolean,
+  abbreviations: isBoolean,
   titles: isBoolean,
-  numbers: isBoolean,
+  phoneNumbers: isBoolean,
 } satisfies Record<keyof LocaleDetailsOptions, Check>;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -165,8 +158,8 @@ function optionsError(
   return;
 }
 
-/** Why `options` are not what a job may carry, or `undefined` when they are. */
-function jobOptionsError(item: RemoteItem): string | undefined {
+/** Why `options` are not what an item may carry, or `undefined` when they are. */
+function itemOptionsError(item: RemoteItem): string | undefined {
   const options: unknown = item.options;
   if (options === undefined) {
     return;
@@ -174,7 +167,7 @@ function jobOptionsError(item: RemoteItem): string | undefined {
   if (item.op === "analyze") {
     return optionsError("options", options, HYPHENATE_CHECKS);
   }
-  // `localeDetails` is the one key a process job has beyond the hyphenate options.
+  // `localeDetails` is the one key a process item has beyond the hyphenate options.
   const error = optionsError("options", options, {
     ...HYPHENATE_CHECKS,
     localeDetails: () => true,
@@ -199,7 +192,7 @@ function isItem(value: unknown): value is RemoteItem {
 }
 
 /**
- * What a job costs against `maxCharacters`: its text or word and the lines of
+ * What an item costs against `maxCharacters`: its text or word and the lines of
  * its `dictionary`, which every word of the text is looked up in. The options
  * are not checked yet, so anything that is not a list of strings counts as 0.
  */
@@ -296,7 +289,7 @@ export async function handleSkiptingarRequest(
   if (!request.headers.get("content-type")?.toLowerCase().includes("application/json")) {
     return json({ error: "content-type must be application/json" }, 415);
   }
-  // 4 bytes for a character covers any text; each job adds room for its keys
+  // 4 bytes for a character covers any text; each item adds room for its keys
   // and options. The limit is for what is read, not for what is valid.
   const maxBytes = maxCharacters * 4 + maxItems * 1024 + 4096;
   const text = await readBody(request, maxBytes);
@@ -311,13 +304,13 @@ export async function handleSkiptingarRequest(
   }
   const items = (body as { items?: unknown } | null)?.items;
   if (!(Array.isArray(items) && items.length <= maxItems && items.every(isItem))) {
-    return json({ error: `items: up to ${maxItems} process or analyze jobs` }, 400);
+    return json({ error: `items: up to ${maxItems} process or analyze items` }, 400);
   }
   if (items.reduce((total, item) => total + sizeOf(item), 0) > maxCharacters) {
     return json({ error: `at most ${maxCharacters} characters in one request` }, 400);
   }
   for (const item of items) {
-    const error = jobOptionsError(item);
+    const error = itemOptionsError(item);
     if (error !== undefined) {
       return json({ error }, 400);
     }

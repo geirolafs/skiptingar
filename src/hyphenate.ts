@@ -2,9 +2,45 @@ import { SOFT_HYPHEN, SOFT_HYPHENS, WHITESPACE_RUNS } from "./characters";
 import { patternBreaks } from "./engine";
 import { lookupException } from "./exceptions";
 import { DATA_LEFT_MIN, DATA_RIGHT_MIN } from "./generated/data";
+import { LINKING_SYLLABLES } from "./rag-language";
 import { findProtectedMask, isProtected } from "./url";
 
 export type HyphenateOptions = {
+  /**
+   * Better breaks keep only the legal breaks that read well. They are new and
+   * under development, and may change. Words need 6 letters or more, with
+   * at least 2 letters before a break and 3 after; the
+   * break before a linking syllable (`ar`, `ur`, `is`, `ir`) goes, so
+   * `sveitarstjórnarkosningum` keeps `sveitar·stjórnar·kosn·ingum`; and a
+   * capitalised foreign name with c, q or w (`Icelandair`) stays whole.
+   * Default `true`. `false` gives the Ritreglur minimums alone: words of 4
+   * letters or more, at least 1 letter before a break and 2 after.
+   */
+  betterBreaks?: boolean;
+  /** Words shorter than this many letters are left alone. Overrides `betterBreaks`. */
+  minWordLength?: number;
+  /** Fewest letters before a break. Overrides `betterBreaks`. */
+  leftMin?: number;
+  /** Fewest letters after a break. Overrides `betterBreaks`. */
+  rightMin?: number;
+  /** Character inserted at each break. Default is the soft hyphen U+00AD. */
+  hyphenChar?: string;
+  /**
+   * Your own words, in the exception list's format: one word a line,
+   * lowercase, `-` for a break and `=` for a compound joint
+   * (`"forn=aldar=frægð"`). They are your own choice and win over the
+   * patterns. A malformed line throws.
+   */
+  dictionary?: readonly string[];
+};
+
+/**
+ * The public options plus four experimental ones. They are for a later
+ * opinionated version, not public and not part of v1, so they are left out of
+ * `HyphenateOptions`, the components, the hooks and the endpoint (which
+ * refuses them). The code and the tests still use them.
+ */
+export type ExperimentalHyphenateOptions = HyphenateOptions & {
   /**
    * "body" (the default) breaks a word wherever the rules allow. "heading" is
    * an experimental, opinionated mode for large type. It uses the heading
@@ -13,11 +49,11 @@ export type HyphenateOptions = {
    * with a `=` in your `dictionary` and, with `exceptions: true`, for a word
    * in the exception list, a name with a `NAME_ENDINGS` ending or a word with
    * a linking syllable. Without joints, heading mode only changes the limits.
-   * It is not part of the v1 API and may change.
+   * `minWordLength`, `leftMin` and `rightMin` override its limits.
    */
   mode?: "body" | "heading";
   /**
-   * Heading mode only, so experimental too. "only" (the default) breaks a word at its compound
+   * Heading mode only. "only" (the default) breaks a word at its compound
    * joints alone, when one fits, which suits a heading the browser sets by
    * itself. "prefer" keeps the other breaks too, for a heading set by a
    * line breaker that weighs a break away from a joint as a cost and takes one
@@ -25,42 +61,14 @@ export type HyphenateOptions = {
    */
   joints?: "only" | "prefer";
   /**
-   * Better breaks keep only the legal breaks that read well. They are new and
-   * under development, and may change. Body words need 6 letters or more, with
-   * at least 2 letters before a break and 3 after (heading: 12, 3 and 4); the
-   * break before a linking syllable (`ar`, `ur`, `is`, `ir`) goes, so
-   * `sveitarstjórnarkosningum` keeps `sveitar·stjórnar·kosn·ingum`; and a
-   * capitalised foreign name with c, q or w (`Icelandair`) stays whole.
-   * Default `true`. `false` gives the Ritreglur minimums alone: words of 4
-   * letters or more, at least 1 letter before a break and 2 after.
-   */
-  betterBreaks?: boolean;
-  /** Words shorter than this many letters are left alone. Overrides `betterBreaks` and `mode`. */
-  minWordLength?: number;
-  /** Fewest letters before a break. Overrides `betterBreaks` and `mode`. */
-  leftMin?: number;
-  /** Fewest letters after a break. Overrides `betterBreaks` and `mode`. */
-  rightMin?: number;
-  /** Character inserted at each break. Default is the soft hyphen U+00AD. */
-  hyphenChar?: string;
-  /**
-   * Experimental, for a later opinionated version, not part of v1. `true` also
-   * uses the bundled exception list (words whose breaks are marked by hand and
-   * replace the pattern breaks) and the `NAME_ENDINGS` joints (heading mode).
-   * The default, `false`, gives the 2020 patterns alone. The list may change.
+   * `true` also uses the bundled exception list (words whose breaks are marked
+   * by hand and replace the pattern breaks) and the `NAME_ENDINGS` joints
+   * (heading mode). The default, `false`, gives the 2020 patterns alone. The
+   * list may change.
    */
   exceptions?: boolean;
   /**
-   * Your own words, in the exception list's format: one word a line,
-   * lowercase, `-` for a break and `=` for a compound joint
-   * (`"forn=aldar=frægð"`). They are your own choice and win over the bundled
-   * list and the patterns, whether `exceptions` is on or not. A malformed line
-   * throws.
-   */
-  dictionary?: readonly string[];
-  /**
-   * Experimental, for a later opinionated version, not part of v1. `true`
-   * leaves all-caps words of `ACRONYM_LENGTH.min` to `ACRONYM_LENGTH.max`
+   * `true` leaves all-caps words of `ACRONYM_LENGTH.min` to `ACRONYM_LENGTH.max`
    * letters alone, so `UNESCO` and `NATO` never break. Longer all-caps words
    * still break. The default, `false`, lets the patterns break them like any
    * other word.
@@ -127,7 +135,7 @@ const MIN_NAME_STEM = 3;
  * better breaks drop that break and keep the one after
  * (`stjórnar-völd`).
  */
-const LINKING_SYLLABLES: ReadonlySet<string> = new Set(["ar", "ur", "is", "ir"]);
+const LINKING_SET: ReadonlySet<string> = new Set(LINKING_SYLLABLES);
 
 /** Fewest letters a compound's next part needs for a linking syllable to count. */
 const MIN_PART_AFTER_LINK = 3;
@@ -149,7 +157,7 @@ function dropLinkingBreaks(
       !keep.includes(position) &&
       breaks.includes(after) &&
       chars.length - after >= MIN_PART_AFTER_LINK &&
-      LINKING_SYLLABLES.has(chars.slice(position, after).join(""))
+      LINKING_SET.has(chars.slice(position, after).join(""))
     );
   });
 }
@@ -234,7 +242,7 @@ function isSkippedToken(token: string): boolean {
   return SKIPPED_TOKEN.test(token) || (token.includes("/") && !token.includes("-/"));
 }
 
-function resolveLimits(options: HyphenateOptions): Limits {
+function resolveLimits(options: ExperimentalHyphenateOptions): Limits {
   const limits = limitsFor(useBetterBreaks(options), options.mode ?? "body");
   return {
     minWordLength: options.minWordLength ?? limits.minWordLength,
@@ -271,7 +279,7 @@ type WordCandidates = {
  */
 function wordCandidates(
   word: string,
-  options: HyphenateOptions,
+  options: ExperimentalHyphenateOptions,
   withJoints: boolean
 ): WordCandidates | undefined {
   const { minWordLength, leftMin, rightMin } = resolveLimits(options);
@@ -338,7 +346,10 @@ function linkedJoints(patterns: readonly number[], kept: readonly number[]): num
  * form), ascending.
  * The word must be letters only. The original case is fine.
  */
-export function hyphenateWord(word: string, options: HyphenateOptions = {}): number[] {
+export function hyphenateWord(
+  word: string,
+  options: ExperimentalHyphenateOptions = {}
+): number[] {
   const heading = options.mode === "heading";
   const found = wordCandidates(word, options, heading);
   if (!found) {
@@ -354,12 +365,11 @@ export function hyphenateWord(word: string, options: HyphenateOptions = {}): num
 
 /**
  * The breaks of one word and the compound joints among them, both as "after N
- * letters", ascending. `breaks` is what `hyphenateWord` gives in body mode.
- * `joints` is where heading mode would prefer to break. They come from a `=`
- * in a `dictionary` line. With `exceptions: true` they also come from the
- * exception list, the `NAME_ENDINGS` joint of a capitalised word and the break
- * after a linking syllable (`stjórnar|völd`, better breaks). Otherwise
- * `joints` is empty. It is always a subset of `breaks`.
+ * letters", ascending. `breaks` is every break the word allows. `joints` are
+ * the compound joints the word is known to have, which the patterns do not
+ * give: the `=` marks of a word in a `dictionary` line
+ * (`{ dictionary: ["hrað=braut"] }`). A word the dictionary does not mark has
+ * none. `joints` is always a subset of `breaks`.
  * The limits (`leftMin`, `rightMin`) apply to both.
  */
 export function analyzeWord(
@@ -401,15 +411,15 @@ function cleanText(text: string): string {
  * soft hyphens are removed and it is put in NFC. A hyphen goes before the
  * character at each offset. Ascending. Skips the same things `hyphenate()` skips.
  *
- * Use this to hyphenate text that is cut into pieces: join the pieces, ask for
- * the offsets once, and cut them back.
+ * Use this to hyphenate text that is cut into segments: join the segments, ask
+ * for the offsets once, and cut them back.
  */
 export function breakOffsets(text: string, options: HyphenateOptions = {}): number[] {
   return offsetsInClean(cleanText(text), options);
 }
 
 /** `breakOffsets` for text that is already clean (see `cleanText`). */
-function offsetsInClean(clean: string, options: HyphenateOptions): number[] {
+function offsetsInClean(clean: string, options: ExperimentalHyphenateOptions): number[] {
   const mask = findProtectedMask(clean);
 
   const offsets: number[] = [];

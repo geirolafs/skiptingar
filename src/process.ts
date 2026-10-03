@@ -17,19 +17,6 @@ export type ProcessOptions = {
 };
 
 /**
- * Locale details are on by default: left out (`undefined`) or `true` means the default
- * rules, an options object sets them, and `false` means off.
- */
-export function resolveLocaleDetails(
-  value: boolean | LocaleDetailsOptions | undefined
-): LocaleDetailsOptions | false {
-  if (value === undefined || value === true) {
-    return {};
-  }
-  return value;
-}
-
-/**
  * Maps break offsets into `NFC(text)` back to offsets into `text`.
  *
  * Every segment is already NFC, so the joined text differs from its NFC form

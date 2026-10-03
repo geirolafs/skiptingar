@@ -1,12 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import {
-  analyzeWord,
-  handleSkiptingarRequest,
-  hyphenate,
-  localeDetails,
-  resolveLocaleDetails,
-  runRemoteItems,
-} from "../src";
+import { analyzeWord, handleSkiptingarRequest, hyphenate, localeDetails } from "../src";
 import {
   configureSkiptingar,
   remoteResult,
@@ -14,6 +7,8 @@ import {
   subscribeRemote,
   usesEndpoint,
 } from "../src/client/remote";
+import { resolveLocaleDetails } from "../src/resolve-locale-details";
+import { runRemoteItems } from "../src/server";
 
 const JSON_TYPE = { "content-type": "application/json" };
 
@@ -38,7 +33,7 @@ const dictionaryLines = (count: number, length = 64) =>
   });
 
 describe("handleSkiptingarRequest", () => {
-  test("answers process and analyze jobs in order", async () => {
+  test("answers process and analyze items in order", async () => {
     const response = await handleSkiptingarRequest(
       post({
         items: [
@@ -159,16 +154,12 @@ describe("handleSkiptingarRequest abuse limits", () => {
   test("accepts every option the package has", async () => {
     const response = await run([
       job("Hraðbrautarframkvæmdir", {
-        mode: "heading",
-        joints: "prefer",
         betterBreaks: false,
         minWordLength: 4,
         leftMin: 1,
         rightMin: 2,
         hyphenChar: "-",
-        exceptions: true,
         dictionary: ["forn=aldar=frægð"],
-        skipAcronyms: true,
         localeDetails: {
           quotes: true,
           singleLetter: true,
@@ -177,9 +168,9 @@ describe("handleSkiptingarRequest abuse limits", () => {
           units: true,
           dates: true,
           ordinals: true,
-          prefixes: true,
+          abbreviations: true,
           titles: true,
-          numbers: true,
+          phoneNumbers: true,
         },
       }),
     ]);
@@ -253,6 +244,30 @@ describe("handleSkiptingarRequest abuse limits", () => {
     }
   });
 
+  test("the experimental options are not public, so they are a 400", async () => {
+    const experimental = [
+      { mode: "heading" },
+      { joints: "prefer" },
+      { exceptions: true },
+      { skipAcronyms: true },
+    ];
+    for (const options of experimental) {
+      for (const item of [job("orð", options), { op: "analyze", word: "orð", options }]) {
+        const response = await run([item]);
+        expect(response.status).toBe(400);
+        expect(await response.text()).toContain("unknown option");
+      }
+    }
+  });
+
+  test("prefixes and numbers are not localeDetails options any more, so they are a 400", async () => {
+    for (const localeDetails of [{ prefixes: true }, { numbers: false }]) {
+      const response = await run([job("orð", { localeDetails })]);
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain("unknown option");
+    }
+  });
+
   test("preset is not a localeDetails option, so it is a 400", async () => {
     for (const preset of ["typographic", "default"]) {
       const response = await run([job("orð", { localeDetails: { preset } })]);
@@ -263,8 +278,6 @@ describe("handleSkiptingarRequest abuse limits", () => {
 
   test("option values must be the right type and in range", async () => {
     const bad = [
-      { mode: "other" },
-      { joints: "x" },
       { betterBreaks: "no" },
       { betterBreaks: 0 },
       { minWordLength: 65 },
@@ -272,8 +285,6 @@ describe("handleSkiptingarRequest abuse limits", () => {
       { rightMin: 1.5 },
       { minWordLength: "4" },
       { minWordLength: 1e9 },
-      { exceptions: "yes" },
-      { skipAcronyms: 1 },
       { dictionary: "forn=aldar" },
       { dictionary: Array.from({ length: 201 }, () => "ab") },
       { dictionary: ["a".repeat(65)] },
