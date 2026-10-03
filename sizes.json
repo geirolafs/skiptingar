@@ -13,10 +13,10 @@
   },
   "browser": {
     "brotli": 52,
-    "gzip": 58.4
+    "gzip": 58.3
   },
   "patterns": {
     "brotli": 49.8,
-    "gzip": 55.9
+    "gzip": 55.8
   }
 }

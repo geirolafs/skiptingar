@@ -21,11 +21,6 @@ import { findProtectedMask, isProtected, type Mask } from "./url";
 
 export type LocaleDetailsOptions = {
   /**
-   * "typographic" also turns on the rules that are off by default
-   * (`singleLetter` and `lastWords`). Explicit options still win.
-   */
-  preset?: "default" | "typographic";
-  /**
    * Icelandic double quotes „…“, and a paired single quote as ‚…‘, the mark
    * for a word's meaning. Default true.
    */
@@ -450,14 +445,13 @@ function applyDashes(text: string, mask: Mask): string {
   return replaceMatches(out, SPACE_BEFORE_DASH, mask, () => NO_BREAK_SPACE);
 }
 
-type ResolvedOptions = Required<Omit<LocaleDetailsOptions, "preset">>;
+type ResolvedOptions = Required<LocaleDetailsOptions>;
 
 function resolveOptions(options: LocaleDetailsOptions): ResolvedOptions {
-  const all = options.preset === "typographic";
   return {
     quotes: options.quotes ?? true,
-    singleLetter: options.singleLetter ?? all,
-    lastWords: options.lastWords ?? all,
+    singleLetter: options.singleLetter ?? false,
+    lastWords: options.lastWords ?? false,
     dashes: options.dashes ?? true,
     numbers: options.numbers ?? true,
     units: options.units ?? true,
@@ -470,8 +464,7 @@ function resolveOptions(options: LocaleDetailsOptions): ResolvedOptions {
 
 /**
  * The locale rules `localeDetails()` has, by option name: one for each option
- * `resolveOptions` fills in (quotes, units, dates and the rest), not counting
- * `preset`.
+ * `resolveOptions` fills in (quotes, units, dates and the rest).
  */
 export const LOCALE_RULES = Object.keys(
   resolveOptions({})

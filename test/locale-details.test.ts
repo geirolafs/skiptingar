@@ -9,6 +9,9 @@ import { NUMBER_PREFIXES } from "../src/locale-details";
 
 const NB = " ";
 
+/** The two rules that are off by default, each turned on by name. */
+const OPTIONAL_RULES_ON = { singleLetter: true, lastWords: true } as const;
+
 /** Shows no-break spaces as "~" so expectations stay readable. */
 function show(text: string): string {
   return text.replaceAll(NB, "~");
@@ -557,7 +560,7 @@ describe("review regressions", () => {
       "‘’ ‚‘ „“ \"\" ''",
     ];
     for (const input of inputs) {
-      for (const options of [{}, { preset: "typographic" } as const]) {
+      for (const options of [{}, OPTIONAL_RULES_ON]) {
         const once = localeDetails(input, options);
         expect(localeDetails(once, options)).toBe(once);
       }
@@ -588,14 +591,14 @@ describe("options", () => {
     );
   });
 
-  test("the typographic preset turns on the rules that are off by default", () => {
-    expect(show(localeDetails(text, { preset: "typographic" }))).toBe(
+  test("singleLetter and lastWords are turned on by name", () => {
+    expect(show(localeDetails(text, OPTIONAL_RULES_ON))).toBe(
       "Hann fór á~„fund“ 1990–\u20602000 og kom~heim."
     );
   });
 
-  test("an explicit option beats the preset", () => {
-    const out = localeDetails(text, { preset: "typographic", dashes: false });
+  test("an option set to false stays off beside the two that are on", () => {
+    const out = localeDetails(text, { ...OPTIONAL_RULES_ON, dashes: false });
     expect(out).toContain("1990-2000");
   });
 });
@@ -684,7 +687,7 @@ describe("URL protection", () => {
     "mailto:jon@example.is?subject=1990-2000",
     "[::1]:3000/1990-2000",
   ])("leaves %p untouched", input => {
-    expect(localeDetails(input, { preset: "typographic" })).toBe(input);
+    expect(localeDetails(input, OPTIONAL_RULES_ON)).toBe(input);
   });
 
   test("leaves a bare domain without a path untouched and quotes around it", () => {
@@ -744,7 +747,7 @@ describe("performance", () => {
     ["a long run of dots after a scheme", `https://${".".repeat(40_000)}`],
     ["a long run of dotted letters", "a.".repeat(20_000)],
   ])("finishes %s in under 200 ms", (_name, input) => {
-    for (const options of [{}, { preset: "typographic" } as const]) {
+    for (const options of [{}, OPTIONAL_RULES_ON]) {
       const start = performance.now();
       localeDetails(input, options);
       expect(performance.now() - start).toBeLessThan(200);
@@ -761,7 +764,7 @@ describe("safety", () => {
   ].join(" ");
 
   test("never touches URLs or email addresses", () => {
-    const out = localeDetails(mixed, { preset: "typographic" });
+    const out = localeDetails(mixed, OPTIONAL_RULES_ON);
     for (const protectedText of [
       "https://example.is/a-b/1990-2000?x='y'",
       "jon@example.is",
@@ -774,7 +777,7 @@ describe("safety", () => {
 
   test("keeps the length and the count of segments", () => {
     const segments = ['Hann sagði "', "1.000 ", "kr.", '" og t. ', "d. fór"];
-    const out = localeDetailsSegments(segments, { preset: "typographic" });
+    const out = localeDetailsSegments(segments, OPTIONAL_RULES_ON);
     expect(out).toHaveLength(segments.length);
     for (const [index, part] of out.entries()) {
       expect(part.length).toBe(segments[index]?.length ?? -1);
@@ -782,13 +785,13 @@ describe("safety", () => {
   });
 
   test("is idempotent", () => {
-    for (const options of [{}, { preset: "typographic" } as const]) {
+    for (const options of [{}, OPTIONAL_RULES_ON]) {
       const once = localeDetails(mixed, options);
       expect(localeDetails(once, options)).toBe(once);
     }
     const segments = ['Hann "', "sagði ‘nei’", '" 30. ', "september 5 ", "km á fund"];
-    const once = localeDetailsSegments(segments, { preset: "typographic" });
-    expect(localeDetailsSegments(once, { preset: "typographic" })).toEqual(once);
+    const once = localeDetailsSegments(segments, OPTIONAL_RULES_ON);
+    expect(localeDetailsSegments(once, OPTIONAL_RULES_ON)).toEqual(once);
   });
 
   test("localeDetails equals the first segment of localeDetailsSegments", () => {
@@ -798,7 +801,7 @@ describe("safety", () => {
   test("handles empty input", () => {
     expect(localeDetails("")).toBe("");
     expect(localeDetailsSegments([])).toEqual([]);
-    expect(localeDetailsSegments(["", ""], { preset: "typographic" })).toEqual(["", ""]);
+    expect(localeDetailsSegments(["", ""], OPTIONAL_RULES_ON)).toEqual(["", ""]);
   });
 });
 

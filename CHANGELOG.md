@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 (2026-10-03)
+
+Breaking: `localeDetails()` no longer takes `preset`. It only turned on
+`singleLetter` and `lastWords`, and it shared a name with
+`rules: "typographic"`, which is unrelated. Pass
+`{ singleLetter: true, lastWords: true }` instead. The endpoint now refuses
+`preset` with a 400.
+
 ## 0.2.0 (2026-10-02)
 
 Breaking: `typeset` is now `localeDetails` everywhere, so the code uses the

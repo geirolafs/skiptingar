@@ -136,10 +136,10 @@ badly:
 | One-letter words | `á`, `í` never end a line | `singleLetter`, off |
 | Last two words | no one-word last line | `lastWords`, off |
 
-`{ preset: "typographic" }` also turns on the two rules that are off by
-default. This `localeDetails` preset is not the same thing as `rules: "typographic"`
-in `hyphenate()`, which gives better breaks. Prefer `text-wrap: pretty` to
-`lastWords` where the browser supports it.
+`singleLetter` and `lastWords` are off by default. Turn each on by name:
+`localeDetails(text, { singleLetter: true, lastWords: true })`, or
+`<Hyphenate localeDetails={{ singleLetter: true }}>`. Prefer `text-wrap: pretty`
+to `lastWords` where the browser supports it.
 
 For a quote inside a quote, Icelandic uses `„…“` again (Ritreglur §28.1), so
 type it that way. Standard abbreviations (`t.d.`, `o.s.frv.`) need no help:

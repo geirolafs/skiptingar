@@ -134,7 +134,7 @@ describe("handleSkiptingarRequest abuse limits", () => {
     const text = 'Hann sagði "orð" um Hraðbrautarframkvæmdir, 1.000 kr.';
     const page = {
       rules: "typographic",
-      localeDetails: { preset: "typographic", dashes: true },
+      localeDetails: { singleLetter: true, lastWords: true, dashes: true },
     };
     const response = await run([
       job(text, page),
@@ -170,7 +170,6 @@ describe("handleSkiptingarRequest abuse limits", () => {
         dictionary: ["forn=aldar=frægð"],
         skipAcronyms: true,
         localeDetails: {
-          preset: "typographic",
           quotes: true,
           singleLetter: true,
           lastWords: true,
@@ -241,6 +240,14 @@ describe("handleSkiptingarRequest abuse limits", () => {
     }
   });
 
+  test("preset is not a localeDetails option, so it is a 400", async () => {
+    for (const preset of ["typographic", "default"]) {
+      const response = await run([job("orð", { localeDetails: { preset } })]);
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain("unknown option");
+    }
+  });
+
   test("option values must be the right type and in range", async () => {
     const bad = [
       { mode: "other" },
@@ -260,7 +267,6 @@ describe("handleSkiptingarRequest abuse limits", () => {
       { localeDetails: "yes" },
       { localeDetails: [] },
       { localeDetails: null },
-      { localeDetails: { preset: "all" } },
       { localeDetails: { quotes: "yes" } },
     ];
     for (const options of bad) {

@@ -129,7 +129,6 @@ const HYPHENATE_CHECKS = {
 } satisfies Record<keyof HyphenateOptions, Check>;
 
 const LOCALE_DETAILS_CHECKS = {
-  preset: oneOf("default", "typographic"),
   quotes: isBoolean,
   singleLetter: isBoolean,
   lastWords: isBoolean,
